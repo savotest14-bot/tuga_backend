@@ -1,0 +1,868 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8" />
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <title>
+        Socket Chat Test
+    </title>
+
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+
+            margin: 0;
+
+            padding: 20px;
+
+            background: #f5f5f5;
+
+            font-family: Arial;
+        }
+
+        h2 {
+            margin-bottom: 20px;
+        }
+
+        input,
+        button {
+
+            padding: 10px;
+
+            border-radius: 8px;
+
+            border: 1px solid #ccc;
+
+            margin: 5px;
+        }
+
+        button {
+            cursor: pointer;
+        }
+
+        #messages {
+
+            height: 500px;
+
+            overflow-y: auto;
+
+            background: white;
+
+            border-radius: 10px;
+
+            border: 1px solid #ddd;
+
+            padding: 15px;
+        }
+
+        .message {
+
+            max-width: 70%;
+
+            padding: 12px;
+
+            border-radius: 10px;
+
+            margin-bottom: 15px;
+
+            word-wrap: break-word;
+        }
+
+        .sender {
+
+            margin-left: auto;
+
+            background: #DCF8C6;
+
+            text-align: right;
+        }
+
+        .receiver {
+
+            background: white;
+
+            border: 1px solid #ddd;
+        }
+
+        .meta {
+
+            font-size: 12px;
+
+            color: gray;
+
+            margin-top: 8px;
+        }
+
+        .online {
+            color: green;
+            font-weight: bold;
+        }
+
+        .offline {
+            color: red;
+            font-weight: bold;
+        }
+
+        .typing {
+
+            color: orange;
+
+            font-weight: bold;
+
+            margin-top: 10px;
+        }
+
+        .chat-image {
+
+            width: 220px;
+
+            margin-top: 10px;
+
+            border-radius: 10px;
+        }
+
+        .top-section {
+            margin-bottom: 20px;
+        }
+    </style>
+
+</head>
+
+<body>
+
+    <h2>
+        Realtime Chat
+    </h2>
+
+    <!-- TOKEN -->
+
+    <div class="top-section">
+
+        <input type="text" id="token" placeholder="JWT Token" style="width: 600px;" />
+
+        <br />
+
+        <input type="text" id="conversationId" placeholder="Conversation ID" style="width: 300px;" />
+
+        <button onclick="connectSocket()">
+            Connect Socket
+        </button>
+
+        <button onclick="joinConversation()">
+            Join Conversation
+        </button>
+
+        <button onclick="loadMessages()">
+            Load Messages
+        </button>
+
+    </div>
+
+    <!-- MESSAGE -->
+
+    <div>
+
+        <input type="text" id="message" placeholder="Type message" style="width: 400px;" oninput="handleTyping()" />
+
+        <button onclick="sendMessage()">
+            Send Message
+        </button>
+
+        <button onclick="markAsRead()">
+            Mark Read
+        </button>
+
+    </div>
+
+    <!-- FILE -->
+
+    <div>
+
+        <input type="file" id="file" onchange="handleFile(event)" />
+
+    </div>
+
+    <hr />
+
+    <!-- STATUS -->
+
+    <div id="status" class="online"></div>
+
+    <!-- TYPING -->
+
+    <div id="typing" class="typing"></div>
+
+    <br />
+
+    <!-- CHAT -->
+
+    <div id="messages"></div>
+
+    <script>
+
+        let socket;
+
+        let currentUserId;
+
+        let typingTimeout;
+
+        let selectedFile = null;
+
+        /*
+        |--------------------------------------------------------------------------
+        | CONNECT SOCKET
+        |--------------------------------------------------------------------------
+        */
+
+        function connectSocket() {
+
+            const token =
+                document.getElementById(
+                    'token',
+                ).value;
+
+            /*
+            |--------------------------------------------------------------------------
+            | JWT PAYLOAD
+            |--------------------------------------------------------------------------
+            */
+
+            const payload =
+                JSON.parse(
+                    atob(
+                        token.split('.')[1],
+                    ),
+                );
+
+            currentUserId =
+                payload.id;
+
+            /*
+            |--------------------------------------------------------------------------
+            | SOCKET
+            |--------------------------------------------------------------------------
+            */
+
+            socket = io(
+                'http://localhost:3000',
+                {
+                    auth: {
+                        token,
+                    },
+
+                    transports: [
+                        'websocket',
+                        'polling',
+                    ],
+
+                    reconnection: true,
+
+                    reconnectionAttempts: 10,
+
+                    reconnectionDelay: 1000,
+                },
+            );
+
+            /*
+            |--------------------------------------------------------------------------
+            | CONNECT
+            |--------------------------------------------------------------------------
+            */
+
+            socket.on(
+                'connect',
+                () => {
+
+                    addStatus(
+                        `Connected: ${socket.id}`,
+                        'online',
+                    );
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | AUTO JOIN AFTER RECONNECT
+                    |--------------------------------------------------------------------------
+                    */
+
+                    const conversationId =
+                        document.getElementById(
+                            'conversationId',
+                        ).value;
+
+                    if (conversationId) {
+
+                        joinConversation();
+                    }
+                },
+            );
+
+            /*
+            |--------------------------------------------------------------------------
+            | CONNECT ERROR
+            |--------------------------------------------------------------------------
+            */
+
+            socket.on(
+                'connect_error',
+                (error) => {
+
+                    console.log(
+                        'Socket Error:',
+                        error.message,
+                    );
+
+                    addStatus(
+                        error.message,
+                        'offline',
+                    );
+                },
+            );
+
+            /*
+            |--------------------------------------------------------------------------
+            | DISCONNECT
+            |--------------------------------------------------------------------------
+            */
+
+            socket.on(
+                'disconnect',
+                () => {
+
+                    addStatus(
+                        'Socket disconnected',
+                        'offline',
+                    );
+                },
+            );
+
+            /*
+            |--------------------------------------------------------------------------
+            | ONLINE
+            |--------------------------------------------------------------------------
+            */
+
+            socket.on(
+                'userOnline',
+                (data) => {
+
+                    addStatus(
+                        `User Online: ${data.userId}`,
+                        'online',
+                    );
+                },
+            );
+
+            /*
+            |--------------------------------------------------------------------------
+            | OFFLINE
+            |--------------------------------------------------------------------------
+            */
+
+            socket.on(
+                'userOffline',
+                (data) => {
+
+                    addStatus(
+                        `User Offline: ${data.userId}`,
+                        'offline',
+                    );
+                },
+            );
+
+            /*
+            |--------------------------------------------------------------------------
+            | NEW MESSAGE
+            |--------------------------------------------------------------------------
+            */
+
+            socket.on(
+                'newMessage',
+                (message) => {
+
+                    renderMessage(
+                        message,
+                    );
+                },
+            );
+
+            /*
+            |--------------------------------------------------------------------------
+            | TYPING
+            |--------------------------------------------------------------------------
+            */
+
+            socket.on(
+                'typing',
+                (data) => {
+
+                    if (
+                        data.userId !== currentUserId
+                    ) {
+
+                        document.getElementById(
+                            'typing',
+                        ).innerText =
+                            'Typing...';
+                    }
+                },
+            );
+
+            /*
+            |--------------------------------------------------------------------------
+            | STOP TYPING
+            |--------------------------------------------------------------------------
+            */
+
+            socket.on(
+                'stopTyping',
+                () => {
+
+                    document.getElementById(
+                        'typing',
+                    ).innerText = '';
+                },
+            );
+
+            /*
+            |--------------------------------------------------------------------------
+            | READ
+            |--------------------------------------------------------------------------
+            */
+
+            socket.on(
+                'messagesRead',
+                (data) => {
+
+                    addStatus(
+                        `Messages read by ${data.userId}`,
+                        'online',
+                    );
+                },
+            );
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | JOIN CONVERSATION
+        |--------------------------------------------------------------------------
+        */
+
+        function joinConversation() {
+
+            const conversationId =
+                document.getElementById(
+                    'conversationId',
+                ).value;
+
+            socket.emit(
+                'joinConversation',
+                {
+                    conversationId,
+                },
+            );
+
+            addStatus(
+                'Conversation Joined',
+                'online',
+            );
+
+            loadMessages();
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | LOAD MESSAGES
+        |--------------------------------------------------------------------------
+        */
+
+        async function loadMessages() {
+
+            const token =
+                document.getElementById(
+                    'token',
+                ).value;
+
+            const conversationId =
+                document.getElementById(
+                    'conversationId',
+                ).value;
+
+            const response =
+                await fetch(
+                    `http://localhost:3000/api/chat/${conversationId}/messages`,
+                    {
+                        headers: {
+                            Authorization:
+                                `Bearer ${token}`,
+                        },
+                    },
+                );
+
+            const result =
+                await response.json();
+           console.log("result", result)
+            document.getElementById(
+                'messages',
+            ).innerHTML = '';
+
+            result.data.forEach(
+                (message) => {
+
+                    renderMessage(
+                        message,
+                    );
+                },
+            );
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | SEND MESSAGE
+        |--------------------------------------------------------------------------
+        */
+
+        async function sendMessage() {
+
+            const token =
+                document.getElementById(
+                    'token',
+                ).value;
+
+            const conversationId =
+                document.getElementById(
+                    'conversationId',
+                ).value;
+
+            const message =
+                document.getElementById(
+                    'message',
+                ).value;
+
+            const formData =
+                new FormData();
+
+            formData.append(
+                'conversationId',
+                conversationId,
+            );
+
+            formData.append(
+                'message',
+                message,
+            );
+
+            /*
+            |--------------------------------------------------------------------------
+            | FILE
+            |--------------------------------------------------------------------------
+            */
+
+            if (selectedFile) {
+
+                formData.append(
+                    'attachment',
+                    selectedFile,
+                );
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | API
+            |--------------------------------------------------------------------------
+            */
+
+            const response =
+                await fetch(
+                    'http://localhost:3000/api/chat/send-message',
+                    {
+                        method: 'POST',
+
+                        headers: {
+                            Authorization:
+                                `Bearer ${token}`,
+                        },
+
+                        body: formData,
+                    },
+                );
+
+            const result =
+                await response.json();
+
+            /*
+            |--------------------------------------------------------------------------
+            | SOCKET EVENT
+            |--------------------------------------------------------------------------
+            */
+
+            socket.emit(
+                'sendMessage',
+                result.data,
+            );
+
+            /*
+            |--------------------------------------------------------------------------
+            | RESET
+            |--------------------------------------------------------------------------
+            */
+
+            document.getElementById(
+                'message',
+            ).value = '';
+
+            document.getElementById(
+                'file',
+            ).value = '';
+
+            selectedFile = null;
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | FILE CHANGE
+        |--------------------------------------------------------------------------
+        */
+
+        function handleFile(
+            event,
+        ) {
+
+            selectedFile =
+                event.target.files[0];
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | MARK READ
+        |--------------------------------------------------------------------------
+        */
+
+        function markAsRead() {
+
+            const conversationId =
+                document.getElementById(
+                    'conversationId',
+                ).value;
+
+            socket.emit(
+                'markAsRead',
+                {
+                    conversationId,
+                },
+            );
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | TYPING
+        |--------------------------------------------------------------------------
+        */
+
+        function handleTyping() {
+
+            const conversationId =
+                document.getElementById(
+                    'conversationId',
+                ).value;
+
+            socket.emit(
+                'typing',
+                {
+                    conversationId,
+                },
+            );
+
+            clearTimeout(
+                typingTimeout,
+            );
+
+            typingTimeout =
+                setTimeout(
+                    () => {
+
+                        socket.emit(
+                            'stopTyping',
+                            {
+                                conversationId,
+                            },
+                        );
+
+                    },
+                    1000,
+                );
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | RENDER MESSAGE
+        |--------------------------------------------------------------------------
+        */
+
+        function renderMessage(
+            message,
+        ) {
+
+            const messages =
+                document.getElementById(
+                    'messages',
+                );
+
+            const div =
+                document.createElement(
+                    'div',
+                );
+
+            const isSender =
+                message.senderId ===
+                currentUserId;
+
+            div.className =
+                `message ${isSender
+                    ? 'sender'
+                    : 'receiver'
+                }`;
+
+            let html = '';
+
+            /*
+            |--------------------------------------------------------------------------
+            | TEXT
+            |--------------------------------------------------------------------------
+            */
+
+            if (message.message) {
+
+                html += `
+          <div>
+            ${message.message}
+          </div>
+        `;
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | ATTACHMENT
+            |--------------------------------------------------------------------------
+            */
+
+            if (message.attachment) {
+
+                const attachmentUrl =
+                    `http://localhost:3000/${message.attachment}`;
+
+                /*
+                |--------------------------------------------------------------------------
+                | IMAGE
+                |--------------------------------------------------------------------------
+                */
+
+                if (
+                    message.attachment.endsWith('.png') ||
+                    message.attachment.endsWith('.jpg') ||
+                    message.attachment.endsWith('.jpeg') ||
+                    message.attachment.endsWith('.webp') ||
+                    message.attachment.endsWith('.gif')
+                ) {
+
+                    html += `
+            <div>
+
+              <img
+                src="${attachmentUrl}"
+                class="chat-image"
+              />
+
+            </div>
+          `;
+                }
+
+                /*
+                |--------------------------------------------------------------------------
+                | FILE
+                |--------------------------------------------------------------------------
+                */
+
+                else {
+
+                    html += `
+            <div>
+
+              <a
+                href="${attachmentUrl}"
+                target="_blank"
+              >
+                Download Attachment
+              </a>
+
+            </div>
+          `;
+                }
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | META
+            |--------------------------------------------------------------------------
+            */
+
+            html += `
+        <div class="meta">
+
+          ${message.sender?.fullName || 'Unknown'}
+
+          •
+
+          ${new Date(
+                message.createdAt,
+            ).toLocaleString()}
+
+        </div>
+      `;
+
+            div.innerHTML = html;
+
+            messages.appendChild(
+                div,
+            );
+
+            messages.scrollTop =
+                messages.scrollHeight;
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | STATUS
+        |--------------------------------------------------------------------------
+        */
+
+        function addStatus(
+            text,
+            className,
+        ) {
+
+            const status =
+                document.getElementById(
+                    'status',
+                );
+
+            status.className =
+                className;
+
+            status.innerText =
+                text;
+        }
+
+    </script>
+
+</body>
+
+</html>

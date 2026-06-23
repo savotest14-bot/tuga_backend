@@ -1,0 +1,1268 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  ADMIN
+  TRADER
+  CUSTOMER
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  BLOCKED
+  PENDING
+}
+
+model User {
+  id String @id @default(uuid())
+
+  fullName String?
+
+  email String  @unique
+  phone String? @unique
+
+  password     String
+  token        String?
+  profileImage String?
+
+  latitude  Decimal? @db.Decimal(10, 7)
+  longitude Decimal? @db.Decimal(10, 7)
+
+  location Unsupported("geography(Point,4326)")?
+
+  role Role @default(CUSTOMER)
+
+  status UserStatus @default(ACTIVE)
+
+  isVerified    Boolean @default(false)
+  acceptedTerms Boolean @default(false)
+
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  passwordResetOtps PasswordResetOtp[]
+  fcmToken          String?
+  traderProfile     TraderProfile?
+  jobs              Job[]              @relation("CustomerJobs")
+
+  selectedJobs Job[] @relation("SelectedTrader")
+
+  quotes Quote[]
+
+  isOnline Boolean @default(false)
+
+  lastSeen DateTime?
+
+  messages Message[] @relation("UserMessages")
+
+  notifications Notification[]
+
+  customerReviews Review[] @relation("CustomerReviews")
+
+  traderReviews Review[] @relation("TraderReviews")
+
+  customerConversations Conversation[] @relation("CustomerConversations")
+
+  traderConversations Conversation[] @relation("TraderConversations")
+
+  jobMatches JobTraderMatch[]
+
+  savedTraders SavedTrader[] @relation("SavedCustomer")
+
+  savedByCustomers SavedTrader[] @relation("SavedTrader")
+
+  reportsCreated Report[] @relation("ReportReporter")
+
+  reportsReviewed Report[] @relation("ReportReviewer")
+
+  traderMetrics TraderMetrics?
+
+  reviewedCategoryRequests TraderCategoryChangeRequest[] @relation("CategoryRequestAdmin")
+
+  contactSubmissions ContactSubmission[]
+
+  contentFlags ContentFlag[]
+  
+  @@index([role, status, isVerified])
+  @@index([latitude, longitude])
+  @@index([createdAt])
+}
+
+model PasswordResetOtp {
+  id String @id @default(uuid())
+
+  userId String
+
+  email String
+
+  otp String
+
+  isVerified Boolean @default(false)
+
+  resetToken String? @unique
+
+  resetTokenExpiresAt DateTime?
+
+  expiresAt DateTime
+
+  usedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+enum VerificationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum SubscriptionTier {
+  BRONZE
+  SILVER
+  GOLD
+}
+
+enum BillingCycle {
+  MONTHLY
+  YEARLY
+}
+
+enum SubscriptionStatus {
+  PENDING
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+  EXPIRED
+  PAYMENT_FAILED
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  REFUNDED
+}
+
+enum PaymentProvider {
+  STRIPE
+  MBWAY
+}
+
+model TraderProfile {
+  id String @id @default(uuid())
+
+  userId String @unique
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Company Details
+  companyName String?
+
+  companyType String?
+
+  registrationNumber String?
+
+  // Store Selected IDs
+  tradeCategories String[]
+
+  skillsServices String[]
+
+  subCategories String[]
+
+  // Business Details
+  workRadius Int?
+
+  location String?
+
+  about String?
+
+  logo String?
+
+  document String?
+
+  // Checkbox Fields
+  minimumExperience Boolean @default(false)
+
+  authorisedBusiness Boolean @default(false)
+
+  understandVettingPolicy Boolean @default(false)
+
+  acceptedTermsConditions Boolean @default(false)
+
+  acceptedPrivacyPolicy Boolean @default(false)
+
+  // Verification
+  verificationStatus VerificationStatus @default(PENDING)
+  verifiedAt         DateTime?
+  verifiedBy         String?
+  rejectReason       String?
+
+  // Subscription Snapshot
+  subscriptionTier   SubscriptionTier?
+  // Relations
+  subscription       Subscription?
+  subscriptionStatus SubscriptionStatus @default(PENDING)
+
+  subscriptionStartDate DateTime?
+
+  subscriptionEndDate DateTime?
+
+  trialEndsAt DateTime?
+
+  // Stripe
+  stripeCustomerId String? @unique
+
+  // Visibility
+  isVisible Boolean @default(true)
+
+  // Business
+  insured Boolean @default(false)
+
+  badges String[]
+
+  createdAt DateTime @default(now())
+
+  updatedAt DateTime @updatedAt
+
+  registrationStep Int @default(1)
+
+  isRegistrationCompleted Boolean @default(false)
+
+  portfolioItems TraderPortfolio[]
+
+  certificates TraderCertificate[]
+
+  insuranceDocuments TraderInsuranceDocument[]
+
+  aboutUs String? @db.Text
+
+  categoryChangeRequests TraderCategoryChangeRequest[]
+
+  @@index([verificationStatus, isVisible, subscriptionStatus])
+  @@index([userId])
+}
+
+model TraderPortfolio {
+  id String @id @default(uuid())
+
+  traderProfileId String
+
+  traderProfile TraderProfile @relation(fields: [traderProfileId], references: [id], onDelete: Cascade)
+
+  fileUrl String
+
+  thumbnailUrl String?
+
+  type PortfolioType
+
+  createdAt DateTime @default(now())
+
+  @@index([traderProfileId])
+
+  @@index([type])
+}
+
+model TraderCertificate {
+  id String @id @default(uuid())
+
+  traderProfileId String
+
+  traderProfile TraderProfile @relation(fields: [traderProfileId], references: [id], onDelete: Cascade)
+
+  fileUrl String
+
+  createdAt DateTime @default(now())
+
+  @@index([traderProfileId])
+}
+
+model TraderInsuranceDocument {
+  id String @id @default(uuid())
+
+  traderProfileId String
+
+  traderProfile TraderProfile @relation(fields: [traderProfileId], references: [id], onDelete: Cascade)
+
+  fileUrl String
+
+  createdAt DateTime @default(now())
+
+  @@index([traderProfileId])
+}
+
+enum PortfolioType {
+  IMAGE
+  VIDEO
+}
+
+
+model TraderCategoryChangeRequest {
+  id              String   @id @default(uuid())
+
+  traderProfileId String
+  traderProfile   TraderProfile @relation(fields: [traderProfileId], references: [id])
+
+  tradeCategories Json?
+  skillsServices  Json?
+  subCategories   Json?
+
+  status          RequestStatus @default(PENDING)
+
+  createdAt       DateTime @default(now())
+  reviewedAt      DateTime?
+  rejectReason   String?
+  reviewedBy      String?
+  admin           User? @relation("CategoryRequestAdmin", fields: [reviewedBy], references: [id])
+}
+
+enum RequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model TraderMetrics {
+  id String @id @default(uuid())
+  traderId String @unique
+  averageRating Float @default(0)
+  bayesianRating Float @default(0)
+  totalReviews Int @default(0)
+  invitesCount Int @default(0)
+  responsesCount Int @default(0)
+  responseRate Float @default(0)
+  recentLeads Int @default(0)
+  recentLeadsResetAt DateTime @default(now())
+  completedJobs Int @default(0)
+  totalMatchedJobs Int @default(0)
+  trader User @relation(fields: [traderId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([responseRate])
+  @@index([averageRating])
+  @@index([traderId])
+}
+
+model SubscriptionPlan {
+  id String @id @default(uuid())
+
+  name SubscriptionTier @unique
+
+  description String?
+
+  /**
+   * |--------------------------------------------------------------------------
+   * | PLAN LIMITS
+   * |--------------------------------------------------------------------------
+   */
+
+  maxTrades Int @default(0)
+
+  unlimitedTrades Boolean @default(false)
+
+  maxPortfolioUploads Int @default(0)
+
+  allowPortfolioVideos Boolean @default(false)
+
+  maxQuotesPerDay Int @default(0)
+
+  /**
+   * |--------------------------------------------------------------------------
+   * | VISIBILITY & EXPOSURE
+   * |--------------------------------------------------------------------------
+   */
+
+  bannerLabel String?
+
+  featuredAtTop Boolean @default(false)
+
+  exposureLevel String?
+
+  /**
+   * |--------------------------------------------------------------------------
+   * | FEATURES
+   * |--------------------------------------------------------------------------
+   */
+
+  newJobAlerts Boolean @default(true)
+
+  customerSupportDays Int @default(7)
+
+  /**
+   * |--------------------------------------------------------------------------
+   * | TRIAL
+   * |--------------------------------------------------------------------------
+   */
+  trialEnabled Boolean @default(false)
+  trialDays    Int     @default(0)
+
+  /**
+   * |--------------------------------------------------------------------------
+   * | STATUS
+   * |--------------------------------------------------------------------------
+   */
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+
+  updatedAt DateTime @updatedAt
+
+  /**
+   * |--------------------------------------------------------------------------
+   * | RELATIONS
+   * |--------------------------------------------------------------------------
+   */
+
+  prices SubscriptionPrice[]
+
+  subscriptions Subscription[]
+}
+
+model SubscriptionPrice {
+  id String @id @default(uuid())
+
+  planId String
+
+  billingCycle BillingCycle
+
+  amount Decimal @db.Decimal(10, 2)
+
+  currency String @default("EUR")
+
+  stripePriceId String?
+
+  mbwayPlanId String?
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  plan SubscriptionPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  subscriptions Subscription[]
+
+  @@unique([planId, billingCycle])
+}
+
+model Subscription {
+  id String @id @default(uuid())
+
+  traderProfileId String @unique
+
+  planId String
+
+  priceId String
+
+  status SubscriptionStatus @default(TRIAL)
+
+  isTrial Boolean @default(false)
+
+  trialStartDate DateTime?
+
+  trialEndDate DateTime?
+
+  startDate DateTime
+
+  endDate DateTime?
+
+  cancelledAt DateTime?
+
+  nextBillingDate DateTime?
+
+  failedPaymentCount Int @default(0)
+
+  profileHiddenAt DateTime?
+
+  stripeSubscriptionId String? @unique
+
+  stripeCustomerId String?
+
+  createdAt DateTime @default(now())
+
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  traderProfile TraderProfile @relation(fields: [traderProfileId], references: [id], onDelete: Cascade)
+
+  plan SubscriptionPlan @relation(fields: [planId], references: [id])
+
+  price SubscriptionPrice @relation(fields: [priceId], references: [id])
+
+  payments SubscriptionPayment[]
+
+  @@index([status])
+  @@index([traderProfileId])
+}
+
+model SubscriptionPayment {
+  id String @id @default(uuid())
+
+  subscriptionId String
+
+  amount Decimal @db.Decimal(10, 2)
+
+  currency String @default("EUR")
+
+  status PaymentStatus
+
+  paymentProvider PaymentProvider
+
+  transactionId String?
+
+  invoiceUrl String?
+
+  paidAt DateTime?
+
+  failureReason String?
+
+  createdAt DateTime @default(now())
+
+  // Relations
+  subscription Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+}
+
+model Category {
+  id String @id @default(uuid())
+
+  name String
+
+  image String?
+
+  isActive Boolean @default(true)
+
+  skillServices SkillService[]
+
+  createdAt DateTime @default(now())
+
+  updatedAt DateTime @updatedAt
+  jobs      Job[]
+}
+
+model SkillService {
+  id String @id @default(uuid())
+
+  categoryId String
+
+  category Category @relation(fields: [categoryId], references: [id])
+
+  name String
+
+  image String?
+
+  isActive Boolean @default(true)
+
+  // Relations
+  subCategories SubCategory[]
+
+  createdAt DateTime @default(now())
+
+  updatedAt DateTime @updatedAt
+  jobs      Job[]
+}
+
+model SubCategory {
+  id String @id @default(uuid())
+
+  skillServiceId String
+
+  skillService SkillService @relation(fields: [skillServiceId], references: [id])
+
+  name String
+
+  image String?
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+
+  updatedAt DateTime @updatedAt
+  jobs      Job[]
+}
+
+// job
+
+enum JobStatus {
+  DRAFT
+  POSTED
+  QUOTE_RECEIVED
+  ASSIGNED
+  IN_PROGRESS
+  COMPLETED
+  CLOSED
+  CANCELLED
+  ARCHIVED
+}
+
+enum JobTimescale {
+  URGENT
+  WITHIN_3_DAYS
+  WITHIN_1_WEEK
+  WITHIN_1_MONTH
+  FLEXIBLE
+}
+
+enum BudgetRange {
+  UNDER_100
+  UNDER_250
+  UNDER_500
+  UNDER_1000
+  UNDER_2000
+  UNDER_4000
+  UNDER_8000
+  BETWEEN_10000_20000
+  BETWEEN_20000_30000
+  ABOVE_30000
+}
+
+enum JobMatchStatus {
+  SENT
+  VIEWED
+  QUOTED
+  REJECTED
+  ACCEPTED
+  NO_RESPONSE
+  EXPIRED
+}
+
+enum QuoteStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+enum ConversationType {
+  JOB
+  DIRECT
+}
+
+enum ReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  ARCHIVED
+}
+
+enum DistributionStatus {
+  AUTO
+  MANUAL_REVIEW
+  MANUAL_DISTRIBUTION
+  PAUSED
+  COMPLETED
+}
+
+model Job {
+  id String @id @default(uuid())
+
+  customerId String
+
+  categoryId String
+
+  skillServiceId String
+
+  subCategoryId String?
+
+  customer User @relation("CustomerJobs", fields: [customerId], references: [id], onDelete: Cascade)
+
+  category Category @relation(fields: [categoryId], references: [id])
+
+  skillService SkillService @relation(fields: [skillServiceId], references: [id])
+
+  subCategory SubCategory? @relation(fields: [subCategoryId], references: [id])
+
+  postcode String?
+
+  latitude Decimal? @db.Decimal(10, 7)
+
+  longitude Decimal? @db.Decimal(10, 7)
+
+  title String
+
+  description String
+
+  timescale JobTimescale
+
+  emergency Boolean @default(false)
+
+  budgetRange BudgetRange?
+
+  status JobStatus @default(POSTED)
+
+  distributionStatus  DistributionStatus @default(AUTO)
+
+  selectedTraderId String?
+
+  selectedTrader User? @relation("SelectedTrader", fields: [selectedTraderId], references: [id])
+
+  quotesReceived Int @default(0)
+
+  currentRadiusKm Int @default(10)
+
+  expiresAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  updatedAt DateTime @updatedAt
+
+  attachments JobAttachment[]
+
+  traderMatches JobTraderMatch[]
+
+  quotes Quote[]
+
+  conversations Conversation[]
+
+  reviews Review[]
+
+  lastEscalatedAt DateTime?
+
+  escalationLogs JobEscalationLog[]
+
+  escalationVersion Int @default(0)
+
+  @@index([status, quotesReceived])
+  @@index([createdAt, currentRadiusKm])
+  @@index([customerId, status])
+}
+
+model JobAttachment {
+  id String @id @default(uuid())
+
+  jobId String
+
+  file String
+
+  createdAt DateTime @default(now())
+
+  job Job @relation(fields: [jobId], references: [id], onDelete: Cascade)
+}
+
+model JobTraderMatch {
+  id String @id @default(uuid())
+
+  /**
+   * |--------------------------------------------------------------------------
+   * | RELATIONS
+   * |--------------------------------------------------------------------------
+   */
+
+  jobId String
+
+  traderId String
+
+  job Job @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  trader User @relation(fields: [traderId], references: [id], onDelete: Cascade)
+
+  /**
+   * |--------------------------------------------------------------------------
+   * | MATCH INFO
+   * |--------------------------------------------------------------------------
+   */
+
+  radiusKm Int @default(10)
+
+  distanceKm Float?
+
+  score Float?
+
+  /**
+   * |--------------------------------------------------------------------------
+   * | STATUS
+   * |--------------------------------------------------------------------------
+   */
+
+  status JobMatchStatus @default(SENT)
+
+  /**
+   * |--------------------------------------------------------------------------
+   * | TRACKING
+   * |--------------------------------------------------------------------------
+   */
+
+  sentAt DateTime @default(now())
+
+  viewedAt DateTime?
+
+  respondedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  /**
+   * |--------------------------------------------------------------------------
+   * | FLAGS
+   * |--------------------------------------------------------------------------
+   */
+
+  isQuoteSubmitted Boolean @default(false)
+
+  isSelected Boolean @default(false)
+
+  /**
+   * |--------------------------------------------------------------------------
+   * | UNIQUE
+   * |--------------------------------------------------------------------------
+   */
+
+  @@unique([jobId, traderId])
+  @@index([jobId, status])
+  @@index([traderId, status])
+  @@index([createdAt])
+}
+
+model Quote {
+  id String @id @default(uuid())
+
+  jobId String
+
+  traderId String
+
+  price Decimal? @db.Decimal(10, 2)
+
+  estimatedDays Int?
+
+  message String?
+
+  status QuoteStatus @default(PENDING)
+
+  createdAt DateTime @default(now())
+
+  updatedAt DateTime @updatedAt
+
+  job Job @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  trader User @relation(fields: [traderId], references: [id], onDelete: Cascade)
+
+  @@unique([jobId, traderId])
+  @@index([jobId])
+  @@index([traderId])
+}
+
+model Conversation {
+  id String @id @default(uuid())
+
+  type ConversationType @default(JOB)
+
+  jobId String?
+
+  customerId String
+
+  traderId String
+
+  createdAt DateTime @default(now())
+
+  updatedAt DateTime @updatedAt
+
+  job Job? @relation(fields: [jobId], references: [id], onDelete: SetNull)
+
+  customer User @relation("CustomerConversations", fields: [customerId], references: [id])
+
+  trader User @relation("TraderConversations", fields: [traderId], references: [id])
+
+  messages Message[]
+
+  @@unique([jobId, customerId, traderId])
+  @@unique([customerId, traderId, type])
+  @@index([jobId])
+  @@index([customerId])
+  @@index([traderId])
+}
+
+model Message {
+  id String @id @default(uuid())
+
+  conversationId String
+
+  senderId String
+
+  message String?
+
+  attachments String[]
+
+  isRead Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  sender User @relation("UserMessages", fields: [senderId], references: [id])
+}
+
+enum ReviewType {
+  DIRECTORY
+  JOB
+}
+enum ReviewModerationType {
+  AUTO
+  MANUAL
+}
+enum ReviewInteractionSource {
+  JOB_CHAT
+  DIRECTORY_CHAT
+  WHATSAPP
+  PHONE
+  MANUAL
+}
+
+enum NoWorkReason {
+  TRADER_DIDNT_RESPOND
+  POOR_COMMUNICATION
+  TRADER_DECLINED_JOB
+  TRADER_MISSED_APPOINTMENT
+  QUOTE_OVER_BUDGET
+  BETTER_PRICE_ELSEWHERE
+  WANTED_QUOTE_ONLY
+  JOB_NO_LONGER_NEEDED
+  OTHER
+}
+
+model Review {
+  id String @id @default(uuid())
+
+  customerId String
+  traderId String
+  jobId String?
+
+  reviewType ReviewType
+  moderationType ReviewModerationType
+  interactionSource ReviewInteractionSource?
+
+  // Existing
+  rating Int
+
+  title String?
+  review String?
+
+  wasWorkCompleted Boolean @default(false)
+
+  // NEW FIELDS
+  workCompletedDate DateTime?
+  wouldRecommendTrader Boolean?
+
+  noWorkReason NoWorkReason?
+  noWorkReasonText String?
+
+  isVerified Boolean @default(false)
+  proofRequired Boolean @default(false)
+
+  status ReviewStatus @default(PENDING)
+
+  traderReply String?
+  traderReplyAt DateTime?
+
+  editableUntil DateTime?
+  reviewRequestExpiresAt DateTime?
+
+  approvedAt DateTime?
+  approvedBy String?
+
+  rejectedAt DateTime?
+  rejectedBy String?
+  rejectionReason String?
+
+  deletedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  customer User @relation("CustomerReviews", fields: [customerId], references: [id])
+
+  trader User @relation("TraderReviews", fields: [traderId], references: [id])
+
+  job Job? @relation(fields: [jobId], references: [id], onDelete: SetNull)
+
+  proofs ReviewProof[]
+
+  @@index([traderId, status])
+  @@index([customerId])
+  @@index([jobId])
+  @@index([createdAt])
+}
+
+model ReviewProof { 
+  id String @id @default(uuid()) 
+  reviewId String 
+  fileUrl String 
+  mimeType String? 
+  createdAt DateTime @default(now()) 
+  review Review @relation( fields: [reviewId], references: [id], onDelete: Cascade ) 
+  @@index([reviewId]) 
+}
+
+model Notification {
+  id String @id @default(uuid())
+
+  userId String
+
+  title String
+
+  body String
+
+  type   String?
+  data   Json?
+  isRead Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead, createdAt])
+}
+
+model JobEscalationLog {
+  id String @id @default(uuid())
+
+  jobId String
+
+  previousRadius Int
+
+  newRadius Int
+
+  tradersSent Int @default(0)
+
+  createdAt DateTime @default(now())
+
+  job Job @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId])
+  @@index([createdAt])
+}
+
+enum ReportType {
+  USER
+  REVIEW
+  JOB
+  MESSAGE
+  TRADER_PROFILE
+}
+
+enum ReportStatus {
+  PENDING
+  REVIEWED
+  RESOLVED
+  REJECTED
+}
+
+enum ReportReason { 
+  SPAM
+  FAKE
+  ABUSIVE
+  HARASSMENT 
+  INAPPROPRIATE_CONTENT 
+  SCAM
+  OTHER 
+}
+
+model Report {
+  id String @id @default(uuid())
+
+  reporterId String
+
+  reportType ReportType
+
+  targetId String
+
+  reason ReportReason
+
+  customReason String?
+
+  status ReportStatus @default(PENDING)
+
+  reviewedById String?
+
+  reviewedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  reporter User @relation("ReportReporter", fields: [reporterId], references: [id])
+
+  reviewedBy User? @relation("ReportReviewer", fields: [reviewedById], references: [id])
+
+  @@index([reportType, targetId])
+  @@index([reporterId])
+  @@index([status])
+}
+
+
+model SavedTrader {
+  id String @id @default(uuid())
+
+  customerId String
+
+  traderId String
+
+  createdAt DateTime @default(now())
+
+  customer User @relation("SavedCustomer", fields: [customerId], references: [id], onDelete: Cascade)
+
+  trader User @relation("SavedTrader", fields: [traderId], references: [id], onDelete: Cascade)
+
+  @@unique([customerId, traderId])
+}
+
+enum ContactSubject {
+  GENERAL_ENQUIRY
+  REPORT_TRADER
+  REPORT_REVIEW
+  TECHNICAL_ISSUE
+  OTHER
+}
+
+model ContactSubmission {
+  id String @id @default(uuid())
+
+  userId String?
+
+  name String
+
+  email String
+
+  subject ContactSubject
+
+  message String
+
+  status ContactStatus @default(PENDING)
+
+  createdAt DateTime @default(now())
+
+  updatedAt DateTime @updatedAt
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  attachments ContactAttachment[]
+
+  @@index([email])
+  @@index([subject])
+  @@index([status])
+  @@index([createdAt])
+}
+
+enum ContactStatus {
+  PENDING
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+model ContactAttachment {
+  id String @id @default(uuid())
+
+  contactSubmissionId String
+
+  fileUrl String
+
+  mimeType String?
+
+  createdAt DateTime @default(now())
+
+  contactSubmission ContactSubmission @relation(fields: [contactSubmissionId], references: [id], onDelete: Cascade)
+
+  @@index([contactSubmissionId])
+}
+
+enum FaqAudience {
+  CUSTOMER
+  TRADER
+  BOTH
+}
+model Faq {
+  id String @id @default(uuid())
+
+  question String
+  answer String
+
+  audience FaqAudience @default(BOTH)
+
+  isActive Boolean @default(true)
+
+  sortOrder Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([audience])
+  @@index([isActive])
+}
+
+enum ViolationCategory {
+  OFF_PLATFORM_CONTACT
+  ABUSE
+  SPAM
+  FRAUD
+  HARASSMENT
+}
+
+enum ContentType {
+  MESSAGE
+  REVIEW
+  PROFILE
+  JOB
+}
+
+enum ModerationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model ViolationKeyword {
+  id        String   @id @default(uuid())
+  keyword   String   @unique
+
+  category  ViolationCategory
+  severity  Int      @default(1)
+
+  isActive  Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+
+  @@index([category])
+  @@index([isActive])
+}
+
+model ContentFlag {
+  id           String   @id @default(uuid())
+
+  userId        String
+
+  contentType   ContentType
+  contentId     String?
+
+  detectedText  String?
+  reason        String
+
+  severity      Int
+
+  status        ModerationStatus @default(PENDING)
+
+  reviewedAt    DateTime?
+
+  createdAt     DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([contentType])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model AdminJobActionLog {
+  id         String @id @default(uuid())
+  jobId      String
+  adminId    String
+  action     String
+  metadata   Json?
+  createdAt  DateTime @default(now())
+}
