@@ -298,16 +298,19 @@ export class ReviewController {
 
     @Get('trader/my-reviews')
     @ApiBearerAuth('access-token')
+    @ApiQuery({ name: 'page', required: false })
+    @ApiQuery({ name: 'limit', required: false })
     async getTraderOwnReviews(
         @Req() req: Request,
-        @Query() query: GetMyReviewsDto,
+        @Query('page') page?: string,
+        @Query('limit') limit?: string,
     ) {
-        return this.reviewService.getTraderOwnReviews(
+        return this.reviewService.getTraderReviews(
             req['user'].id,
-            query,
+            Number(page || 1),
+            Number(limit || 10),
         );
     }
-
     /*
     |--------------------------------------------------------------------------
     | DELETE REVIEW
