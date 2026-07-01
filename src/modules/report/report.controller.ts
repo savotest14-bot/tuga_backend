@@ -100,7 +100,6 @@ export class ReportController {
         @Param('id')
         reportId: string,
     ) {
-
         return this.reportService.getReportById(
             reportId,
             req['user'].id,
@@ -125,4 +124,5 @@ export class ReportController {
             dto,
         );
     }
+
 }

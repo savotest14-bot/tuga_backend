@@ -48,7 +48,7 @@ import { ModerationModule } from 'src/modules/moderation/moderation.module';
           ),
 
         signOptions: {
-          expiresIn: '7d',
+          expiresIn: '30d',
         },
       }),
     }),

@@ -203,4 +203,17 @@ export class RedisService
       key,
     );
   }
+
+  async sAdd(key: string, value: string) {
+    return this.redis.sadd(key, value);
+  }
+
+  async sRem(key: string, value: string) {
+    return this.redis.srem(key, value);
+  }
+
+  async sCard(key: string) {
+    return this.redis.scard(key);
+  }
+  
 }

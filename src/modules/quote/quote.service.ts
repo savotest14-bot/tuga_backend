@@ -640,6 +640,7 @@ export class QuoteService {
         await this.redisService.deleteByPattern(
             'admin:jobs:*',
         );
+        await this.redisService.deleteByPattern('admin:quotes:*');
         return {
             message:
                 'Quote submitted successfully',
@@ -966,6 +967,7 @@ export class QuoteService {
             await this.redisService.deleteByPattern(
                 'admin:jobs:*',
             );
+            await this.redisService.deleteByPattern('admin:quotes:*');
 
             // Clear cache and notify rejected traders
             await Promise.all(
@@ -1006,6 +1008,7 @@ export class QuoteService {
         await this.redisService.deleteByPattern(
             `customer:jobs:${customerId}:*`,
         );
+        await this.redisService.deleteByPattern('admin:quotes:*');
         return {
             message:
                 'Trader selected successfully',
@@ -1211,13 +1214,12 @@ export class QuoteService {
 
             data: quote,
         };
-
         await this.redisService.set(
             cacheKey,
             result,
             300, // 5 minutes
         );
-
         return result;
     }
+    
 }

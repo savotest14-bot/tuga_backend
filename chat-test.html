@@ -216,6 +216,7 @@
         let typingTimeout;
 
         let selectedFile = null;
+        const renderedMessages = new Set();
 
         /*
         |--------------------------------------------------------------------------
@@ -224,6 +225,11 @@
         */
 
         function connectSocket() {
+
+            if (socket) {
+                socket.removeAllListeners();
+                socket.disconnect();
+            }
 
             const token =
                 document.getElementById(
@@ -509,10 +515,11 @@
 
             const result =
                 await response.json();
-           console.log("result", result)
+            console.log("result", result)
             document.getElementById(
                 'messages',
             ).innerHTML = '';
+            renderedMessages.clear();
 
             result.data.forEach(
                 (message) => {
@@ -569,7 +576,7 @@
             if (selectedFile) {
 
                 formData.append(
-                    'attachment',
+                    'attachments',
                     selectedFile,
                 );
             }
@@ -711,6 +718,14 @@
             message,
         ) {
 
+            if (message.id && renderedMessages.has(message.id)) {
+                return;
+            }
+
+            if (message.id) {
+                renderedMessages.add(message.id);
+            }
+
             const messages =
                 document.getElementById(
                     'messages',
@@ -754,7 +769,50 @@
             |--------------------------------------------------------------------------
             */
 
-            if (message.attachment) {
+            if (message.attachments && message.attachments.length) {
+
+                message.attachments.forEach((attachment) => {
+
+                    const attachmentUrl =
+                        `http://localhost:3000/${attachment}`;
+
+                    if (
+                        attachment.endsWith('.png') ||
+                        attachment.endsWith('.jpg') ||
+                        attachment.endsWith('.jpeg') ||
+                        attachment.endsWith('.webp') ||
+                        attachment.endsWith('.gif')
+                    ) {
+
+                        html += `
+            <div>
+
+              <img
+                src="${attachmentUrl}"
+                class="chat-image"
+              />
+
+            </div>
+          `;
+                    } else {
+
+                        html += `
+            <div>
+
+              <a
+                href="${attachmentUrl}"
+                target="_blank"
+              >
+                Download Attachment
+              </a>
+
+            </div>
+          `;
+                    }
+
+                });
+
+            } else if (message.attachment) {
 
                 const attachmentUrl =
                     `http://localhost:3000/${message.attachment}`;

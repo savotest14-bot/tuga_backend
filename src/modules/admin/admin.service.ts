@@ -2,9 +2,11 @@
 
 import {
     BadRequestException,
+    Get,
     Injectable,
     Logger,
     NotFoundException,
+    Param,
 } from '@nestjs/common';
 
 import {
@@ -27,6 +29,9 @@ import { NotificationService } from '../notification/notification.service';
 import { ReviewCategoryChangeDto } from './dto/ReviewCategoryChangeDto';
 import { GetJobsDto } from './dto/get-job.dto';
 import { GetManualReviewJobsDto } from './dto/get-manual-review-job.dto';
+import { ApiBearerAuth } from '@nestjs/swagger';
+import { GetReviewsDto } from './dto/get-review.dto';
+import { GetAllQuotesDto } from './dto/get-all-quote.dto';
 
 @Injectable()
 export class AdminService {
@@ -892,7 +897,8 @@ export class AdminService {
             ),
             this.redisService.deleteByPattern(
                 `review:detail:${reviewId}:*`,
-            )
+            ),
+            this.redisService.deleteByPattern('admin:reviews:*'),
         ]);
 
         try {
@@ -1666,6 +1672,279 @@ export class AdminService {
         return result;
     }
 
+    async getJobDetails(id: string) {
+        const cacheKey = `admin:job:${id}`;
+
+        const cached = await this.redisService.get(cacheKey);
+
+        if (cached) {
+            return cached;
+        }
+
+        const job = await this.prisma.job.findUnique({
+            where: { id },
+
+            include: {
+                customer: {
+                    select: {
+                        id: true,
+                        fullName: true,
+                        email: true,
+                        phone: true,
+                        profileImage: true,
+                        createdAt: true,
+                    },
+                },
+
+                category: {
+                    select: {
+                        id: true,
+                        name: true,
+                    },
+                },
+
+                subCategory: {
+                    select: {
+                        id: true,
+                        name: true,
+                    },
+                },
+
+                skillService: {
+                    select: {
+                        id: true,
+                        name: true,
+                    },
+                },
+
+                selectedTrader: {
+                    select: {
+                        id: true,
+                        fullName: true,
+                        email: true,
+                        phone: true,
+                        profileImage: true,
+                    },
+                },
+
+                attachments: true,
+
+                traderMatches: {
+                    include: {
+                        trader: {
+                            select: {
+                                id: true,
+                                fullName: true,
+                                email: true,
+                                phone: true,
+                                profileImage: true,
+                            },
+                        },
+                    },
+                    orderBy: {
+                        createdAt: 'asc',
+                    },
+                },
+
+                quotes: {
+                    include: {
+                        trader: {
+                            select: {
+                                id: true,
+                                fullName: true,
+                                email: true,
+                                phone: true,
+                                profileImage: true,
+                            },
+                        },
+                    },
+                    orderBy: {
+                        createdAt: 'desc',
+                    },
+                },
+
+                conversations: {
+                    select: {
+                        id: true,
+                        createdAt: true,
+                    },
+                },
+
+                reviews: {
+                    include: {
+                        customer: {
+                            select: {
+                                id: true,
+                                fullName: true,
+                            },
+                        },
+                        trader: {
+                            select: {
+                                id: true,
+                                fullName: true,
+                            },
+                        },
+                    },
+                },
+
+                escalationLogs: {
+                    orderBy: {
+                        createdAt: 'desc',
+                    },
+                },
+
+                _count: {
+                    select: {
+                        quotes: true,
+                        traderMatches: true,
+                        conversations: true,
+                        reviews: true,
+                        attachments: true,
+                    },
+                },
+            },
+        });
+
+        if (!job) {
+            throw new NotFoundException('Job not found');
+        }
+
+        const result = {
+            message: 'Job details fetched successfully',
+
+            data: {
+                ...job,
+
+                counts: {
+                    quotes: job._count.quotes,
+                    traderMatches: job._count.traderMatches,
+                    conversations: job._count.conversations,
+                    reviews: job._count.reviews,
+                    attachments: job._count.attachments,
+                },
+            },
+        };
+
+        await this.redisService.set(cacheKey, result, 300);
+
+        return result;
+    }
+
+    async getAllReviews(query: GetReviewsDto) {
+        const {
+            page = 1,
+            limit = 10,
+            status,
+            reviewType,
+            moderationType,
+        } = query;
+
+        const skip = (page - 1) * limit;
+
+        const cacheKey = `admin:reviews:${page}:${limit}:${status ?? 'all'}:${reviewType ?? 'all'}:${moderationType ?? 'all'}`;
+
+        const cached = await this.redisService.get(cacheKey);
+
+        if (cached) {
+            return cached;
+        }
+
+        const where: any = {
+            deletedAt: null,
+        };
+
+        if (status) {
+            where.status = status;
+        }
+
+        if (reviewType) {
+            where.reviewType = reviewType;
+        }
+
+        if (moderationType) {
+            where.moderationType = moderationType;
+        }
+
+        const [reviews, total] = await Promise.all([
+            this.prisma.review.findMany({
+                where,
+
+                include: {
+                    customer: {
+                        select: {
+                            id: true,
+                            fullName: true,
+                            email: true,
+                            phone: true,
+                            profileImage: true,
+                        },
+                    },
+
+                    trader: {
+                        select: {
+                            id: true,
+                            fullName: true,
+                            email: true,
+                            phone: true,
+                            profileImage: true,
+                        },
+                    },
+
+                    job: {
+                        select: {
+                            id: true,
+                            title: true,
+                            status: true,
+
+                            category: {
+                                select: {
+                                    id: true,
+                                    name: true,
+                                },
+                            },
+                        },
+                    },
+
+                    proofs: true,
+                },
+
+                orderBy: {
+                    createdAt: 'desc',
+                },
+
+                skip,
+                take: limit,
+            }),
+
+            this.prisma.review.count({
+                where,
+            }),
+        ]);
+
+        const result = {
+            message: 'Reviews fetched successfully',
+
+            data: reviews.map((review) => ({
+                ...review,
+
+                proofs: review.proofs.map((proof) => ({
+                    ...proof,
+                    url: `${process.env.APP_URL}/${proof.fileUrl}`,
+                })),
+            })),
+
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages: Math.ceil(total / limit),
+            },
+        };
+
+        await this.redisService.set(cacheKey, result, 300);
+
+        return result;
+    }
 
     async getManualReviewJobs(
         query: GetManualReviewJobsDto,
@@ -1969,6 +2248,7 @@ export class AdminService {
         await this.redisService.deleteByPattern(
             'admin:jobs:*',
         );
+        await this.redisService.del(`admin:job:${jobId}`);
 
         return {
             message: 'Job distributed successfully',
@@ -2118,5 +2398,121 @@ export class AdminService {
         }
         return scoredTraders
 
+    }
+
+    async getAllQuotes(
+        query: GetAllQuotesDto,
+    ) {
+        const {
+            page = 1,
+            limit = 10,
+            status,
+        } = query;
+
+        const skip = (page - 1) * limit;
+
+        const cacheKey = `admin:quotes:${page}:${limit}:${status ?? 'all'}`;
+
+        const cached = await this.redisService.get(cacheKey);
+
+        if (cached) {
+            return cached;
+        }
+
+        const where: any = {};
+
+        if (status) {
+            where.status = status;
+        }
+
+        const [quotes, total] = await Promise.all([
+            this.prisma.quote.findMany({
+                where,
+
+                include: {
+                    trader: {
+                        select: {
+                            id: true,
+                            fullName: true,
+                            email: true,
+                            phone: true,
+                            profileImage: true,
+                        },
+                    },
+
+                    job: {
+                        select: {
+                            id: true,
+                            title: true,
+                            status: true,
+                            budgetRange: true,
+                            createdAt: true,
+
+                            customer: {
+                                select: {
+                                    id: true,
+                                    fullName: true,
+                                    email: true,
+                                    phone: true,
+                                },
+                            },
+
+                            category: {
+                                select: {
+                                    id: true,
+                                    name: true,
+                                },
+                            },
+
+                            subCategory: {
+                                select: {
+                                    id: true,
+                                    name: true,
+                                },
+                            },
+
+                            skillService: {
+                                select: {
+                                    id: true,
+                                    name: true,
+                                },
+                            },
+                        },
+                    },
+                },
+
+                orderBy: {
+                    createdAt: 'desc',
+                },
+
+                skip,
+                take: limit,
+            }),
+
+            this.prisma.quote.count({
+                where,
+            }),
+        ]);
+
+        const result = {
+            message: 'Quotes fetched successfully',
+
+            data: quotes,
+
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages: Math.ceil(total / limit),
+            },
+        };
+
+        await this.redisService.set(
+            cacheKey,
+            result,
+            300,
+        );
+
+        return result;
     }
 }

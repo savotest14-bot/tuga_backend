@@ -17,7 +17,7 @@ async function bootstrap() {
   const configService =
     app.get(ConfigService);
 
-  const allowedOrigins = configService.get<string>('ALLOWED_ORIGINS')?.split(',') || ['http://localhost:3000', 'http://localhost:4000'];
+  const allowedOrigins = configService.get<string>('ALLOWED_ORIGINS')?.split(',') || ['http://localhost:3000','https://tugatraders.server24.in','https://admin.tugatraders.server24.in','http://127.0.0.1:5500'];
   app.enableCors({
     origin: allowedOrigins,
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
@@ -40,7 +40,6 @@ async function bootstrap() {
       forbidNonWhitelisted: true,
     }),
   );
-
   // Swagger Config
   const config =
     new DocumentBuilder()

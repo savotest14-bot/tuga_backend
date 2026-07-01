@@ -269,6 +269,7 @@ export class TraderMatchingService {
       await this.redisService.deleteByPattern(
         `trader:matched-jobs:${item.traderId}:*`,
       );
+      await this.redisService.del(`admin:job:${jobId}`);
     }
 
     await this.prisma.$transaction(

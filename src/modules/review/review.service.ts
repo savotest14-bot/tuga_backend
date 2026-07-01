@@ -297,7 +297,8 @@ export class ReviewService {
             ),
             this.redisService.deleteByPattern(
                 `review:detail:${review.id}:*`,
-            )
+            ),
+            this.redisService.deleteByPattern('admin:reviews:*'),
         ]);
 
         try {
@@ -662,7 +663,8 @@ export class ReviewService {
                 ),
                 this.redisService.deleteByPattern(
                     `review:detail:${reviewId}:*`,
-                )
+                ),
+                this.redisService.deleteByPattern('admin:reviews:*'),
             ]);
 
             return await tx.review.update({
@@ -728,7 +730,8 @@ export class ReviewService {
             ),
             this.redisService.deleteByPattern(
                 `review:detail:${reviewId}:*`,
-            )
+            ),
+            this.redisService.deleteByPattern('admin:reviews:*'),
         ]);
 
         /*
@@ -1064,7 +1067,8 @@ export class ReviewService {
             ),
             this.redisService.deleteByPattern(
                 `review:detail:${reviewId}:*`,
-            )
+            ),
+            this.redisService.deleteByPattern('admin:reviews:*'),
         ]);
 
         return {
@@ -1178,7 +1182,8 @@ export class ReviewService {
             ),
             this.redisService.deleteByPattern(
                 `review:detail:${reviewId}:*`,
-            )
+            ),
+            this.redisService.deleteByPattern('admin:reviews:*'),
         ]);
 
         /*

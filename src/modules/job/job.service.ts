@@ -597,6 +597,7 @@ export class JobService {
         await this.redisService.deleteByPattern(
             'admin:jobs:*',
         );
+        await this.redisService.del(`admin:job:${jobId}`);
 
         // checking for violation
         if (dto.description?.trim()) {
@@ -607,6 +608,7 @@ export class JobService {
                 jobId,
             );
         }
+
         return {
 
             message:
@@ -987,6 +989,7 @@ export class JobService {
         await this.redisService.deleteByPattern(
             'admin:jobs:*',
         );
+        await this.redisService.del(`admin:job:${jobId}`);
         return {
             message:
                 'Job started successfully',
@@ -1113,6 +1116,7 @@ export class JobService {
         await this.redisService.deleteByPattern(
             'admin:jobs:*',
         );
+        await this.redisService.del(`admin:job:${jobId}`);
 
         await this.notificationService
             .createNotification(
@@ -1235,6 +1239,7 @@ export class JobService {
         await this.redisService.deleteByPattern(
             'admin:jobs:*',
         );
+        await this.redisService.del(`admin:job:${jobId}`);
 
         return {
 
@@ -1302,6 +1307,7 @@ export class JobService {
             this.redisService.deleteByPattern(
                 'admin:jobs:*',
             ),
+            this.redisService.del(`admin:job:${jobId}`),
         ]);
 
         return {
@@ -1389,6 +1395,7 @@ export class JobService {
             this.redisService.deleteByPattern(
                 'admin:jobs:*',
             ),
+            this.redisService.del(`admin:job:${jobId}`),
         ]);
 
         return {
@@ -1481,6 +1488,7 @@ export class JobService {
             this.redisService.deleteByPattern(
                 'admin:jobs:*',
             ),
+            this.redisService.del(`admin:job:${jobId}`),
         ]);
 
         return {
@@ -1570,6 +1578,7 @@ export class JobService {
             this.redisService.deleteByPattern(
                 'admin:jobs:*',
             ),
+            this.redisService.del(`admin:job:${jobId}`),
         ]);
 
         return {
@@ -1655,6 +1664,7 @@ export class JobService {
             this.redisService.deleteByPattern(
                 'admin:jobs:*',
             ),
+            this.redisService.del(`admin:job:${jobId}`),
         ]);
 
         return {
@@ -1662,5 +1672,4 @@ export class JobService {
                 'Job distribution closed successfully',
         };
     }
-
 }

@@ -45,6 +45,7 @@ lerna-debug.log*
 # temp directory
 .temp
 .tmp
+chat-test.html
 
 # Runtime data
 pids

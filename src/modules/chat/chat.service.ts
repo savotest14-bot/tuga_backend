@@ -83,13 +83,11 @@ export class ChatService {
         }
         return { ...message, receiverId: conversation.customerId === body.senderId ? conversation.traderId : conversation.customerId, };
     }
-
     /*
     |--------------------------------------------------------------------------
     | GET MESSAGES
     |--------------------------------------------------------------------------
     */
-
     async getConversationMessages(
         conversationId: string,
         userId: string,
@@ -128,10 +126,11 @@ export class ChatService {
     |--------------------------------------------------------------------------
     */
 
-    async setUserOnline(
-        userId: string,
-    ) {
-        return this.prisma.user.updateMany({
+    async setUserOnline(userId: string) {
+
+        // console.log('SET ONLINE =>', userId);
+
+        const user = await this.prisma.user.update({
             where: {
                 id: userId,
             },
@@ -139,6 +138,10 @@ export class ChatService {
                 isOnline: true,
             },
         });
+
+        // console.log('ONLINE UPDATED =>', user);
+
+        return user;
     }
 
     /*
@@ -147,10 +150,11 @@ export class ChatService {
     |--------------------------------------------------------------------------
     */
 
-    async setUserOffline(
-        userId: string,
-    ) {
-        return this.prisma.user.updateMany({
+    async setUserOffline(userId: string) {
+
+        // console.log('SET OFFLINE =>', userId);
+
+        const user = await this.prisma.user.update({
             where: {
                 id: userId,
             },
@@ -159,6 +163,10 @@ export class ChatService {
                 lastSeen: new Date(),
             },
         });
+
+        // console.log('OFFLINE UPDATED =>', user);
+
+        return user;
     }
 
     /*

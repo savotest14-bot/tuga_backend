@@ -47,8 +47,6 @@ import { FaqModule } from './modules/faq/faq.module';
 import { ViolationKeywordSeeder } from './common/seeder/violation-keyword.seeder';
 import { ModerationModule } from './modules/moderation/moderation.module';
 
-
-
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -111,7 +109,6 @@ import { ModerationModule } from './modules/moderation/moderation.module';
     FaqModule,
 
     ModerationModule,
-
 
   ],
 

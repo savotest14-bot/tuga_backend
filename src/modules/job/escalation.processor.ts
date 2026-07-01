@@ -139,6 +139,7 @@ export class EscalationProcessor extends WorkerHost {
         await this.redisService.deleteByPattern(
           'admin:manual-review-jobs:*',
         );
+        await this.redisService.del(`admin:job:${jobId}`);
         // Notify all admins
         const admins = await this.prisma.user.findMany({
           where: {
@@ -173,7 +174,6 @@ export class EscalationProcessor extends WorkerHost {
           radius: newRadius,
         };
       }
-
 
       // Queue the next escalation delayed job if radius still under 100km
       if (newRadius < 100) {

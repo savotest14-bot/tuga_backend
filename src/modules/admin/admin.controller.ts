@@ -28,6 +28,8 @@ import { GetJobsDto } from './dto/get-job.dto';
 import { GetManualReviewJobsDto } from './dto/get-manual-review-job.dto';
 import { ManualDistributionDto } from './dto/manually-distribution.dto';
 import { SuggestedTradersDto } from './dto/get-suggested-trader.dto';
+import { GetReviewsDto } from './dto/get-review.dto';
+import { GetAllQuotesDto } from './dto/get-all-quote.dto';
 
 @ApiTags('Admin')
 
@@ -302,6 +304,20 @@ export class AdminController {
         );
     }
 
+    @Get('jobs/:id')
+    @ApiBearerAuth('access-token')
+    async getJobDetails(@Param('id') id: string) {
+        return this.adminService.getJobDetails(id);
+    }
+
+    @Get('reviews')
+    @ApiBearerAuth('access-token')
+    async getAllReviews(
+        @Query() query: GetReviewsDto,
+    ) {
+        return this.adminService.getAllReviews(query);
+    }
+
     @Get('job/manual-review')
     @ApiBearerAuth('access-token')
     async getManualReviewJobs(
@@ -354,5 +370,13 @@ export class AdminController {
             query.limit,
             query.radius,
         );
+    }
+
+    @Get('quotes')
+    @ApiBearerAuth('access-token')
+    async getAllQuotes(
+        @Query() query: GetAllQuotesDto,
+    ) {
+        return this.adminService.getAllQuotes(query);
     }
 }

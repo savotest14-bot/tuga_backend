@@ -49,9 +49,83 @@ export class ChatGateway
   |--------------------------------------------------------------------------
   */
 
-  async handleConnection(
-    client: Socket,
-  ) {
+  // async handleConnection(
+  //   client: Socket,
+  // ) {
+  //   try {
+
+  //     const token =
+  //       client.handshake.auth.token;
+  //     if (!token) {
+  //       client.disconnect();
+  //       return;
+  //     }
+
+  //     const payload =
+  //       await this.jwtService.verifyAsync(
+  //         token,
+  //       );
+
+  //     client.data.user = payload;
+
+  //     await client.join(
+  //       `user:${payload.id}`,
+  //     );
+
+  //     const onlineCount =
+  //       await this.redisService.incr(
+  //         `online:user:${payload.id}`,
+  //       );
+
+  //     if (onlineCount === 1) {
+
+  //       await this.chatService
+  //         .setUserOnline(
+  //           payload.id,
+  //         );
+
+  //       const conversingUsers =
+  //         await this.chatService
+  //           .getConversingUsers(
+  //             payload.id,
+  //           );
+
+  //       for (
+  //         const otherUserId
+  //         of conversingUsers
+  //       ) {
+
+  //         this.server
+  //           .to(
+  //             `user:${otherUserId}`,
+  //           )
+  //           .emit(
+  //             'userOnline',
+  //             {
+  //               userId:
+  //                 payload.id,
+  //             },
+  //           );
+  //       }
+  //     }
+
+  //     console.log(
+  //       'Socket connected',
+  //       client.id,
+  //     );
+
+  //   } catch (error) {
+
+  //     console.log(
+  //       'Socket connection error',
+  //       error.message,
+  //     );
+
+  //     client.disconnect();
+  //   }
+  // }
+
+  async handleConnection(client: Socket) {
     try {
 
       const token =
@@ -69,133 +143,225 @@ export class ChatGateway
 
       client.data.user = payload;
 
+      /*
+      |--------------------------------------------------------------------------
+      | PERSONAL ROOM
+      |--------------------------------------------------------------------------
+      */
+
       await client.join(
         `user:${payload.id}`,
       );
 
-      const onlineCount =
-        await this.redisService.incr(
-          `online:user:${payload.id}`,
+      /*
+      |--------------------------------------------------------------------------
+      | ONLINE
+      |--------------------------------------------------------------------------
+      */
+
+      const room =
+        this.server.sockets.adapter.rooms.get(
+          `user:${payload.id}`,
         );
 
-      if (onlineCount === 1) {
+      const activeSockets =
+        room ? room.size : 0;
 
-        await this.chatService
-          .setUserOnline(
+      console.log(
+        `Active sockets: ${activeSockets}`,
+      );
+
+      if (activeSockets === 1) {
+
+        await this.chatService.setUserOnline(
+          payload.id,
+        );
+
+        const conversingUsers =
+          await this.chatService.getConversingUsers(
             payload.id,
           );
 
-        const conversingUsers =
-          await this.chatService
-            .getConversingUsers(
-              payload.id,
-            );
-
-        for (
-          const otherUserId
-          of conversingUsers
-        ) {
+        for (const otherUserId of conversingUsers) {
 
           this.server
-            .to(
-              `user:${otherUserId}`,
-            )
-            .emit(
-              'userOnline',
-              {
-                userId:
-                  payload.id,
-              },
-            );
+            .to(`user:${otherUserId}`)
+            .emit('userOnline', {
+              userId: payload.id,
+            });
+
         }
       }
 
       console.log(
-        'Socket connected',
-        client.id,
+        `Socket Connected: ${client.id}`,
       );
 
     } catch (error) {
 
-      console.log(
-        'Socket connection error',
-        error.message,
-      );
+      console.error(error);
 
       client.disconnect();
+
     }
   }
-
   /*
   |--------------------------------------------------------------------------
   | DISCONNECT
   |--------------------------------------------------------------------------
   */
 
-  async handleDisconnect(
-    client: Socket,
-  ) {
-    try {
+  // async handleDisconnect(
+  //   client: Socket,
+  // ) {
+  //   try {
 
-      const user =
-        client.data.user;
+  //     const user =
+  //       client.data.user;
+
+  //     if (!user) {
+  //       return;
+  //     }
+
+  //     const exists =
+  //       await this.redisService.exists(
+  //         `online:user:${user.id}`,
+  //       );
+
+  //     if (!exists) {
+  //       return;
+  //     }
+
+  //     const count =
+  //       await this.redisService.decr(
+  //         `online:user:${user.id}`,
+  //       );
+
+  //     if (count <= 0) {
+
+  //       await this.redisService.del(
+  //         `online:user:${user.id}`,
+  //       );
+
+  //       await this.chatService
+  //         .setUserOffline(
+  //           user.id,
+  //         );
+
+  //       const conversingUsers =
+  //         await this.chatService
+  //           .getConversingUsers(
+  //             user.id,
+  //           );
+
+  //       for (const otherUserId of conversingUsers) {
+
+  //         this.server
+  //           .to(
+  //             `user:${otherUserId}`,
+  //           )
+  //           .emit(
+  //             'userOffline',
+  //             {
+  //               userId: user.id,
+  //             },
+  //           );
+  //       }
+  //     }
+
+  //   } catch (error) {
+
+  //     console.log(
+  //       'Socket disconnect error',
+  //       error.message,
+  //     );
+  //   }
+  // }
+
+  async handleDisconnect(client: Socket) {
+    try {
+      const user = client.data.user;
 
       if (!user) {
         return;
       }
 
-      const exists =
-        await this.redisService.exists(
-          `online:user:${user.id}`,
+      console.log(
+        `Socket Disconnected: ${client.id} | User: ${user.id}`,
+      );
+
+      /*
+      |--------------------------------------------------------------------------
+      | WAIT A MOMENT
+      | Gives Socket.IO time to remove the socket from all rooms.
+      |--------------------------------------------------------------------------
+      */
+
+      await new Promise((resolve) =>
+        setTimeout(resolve, 300),
+      );
+
+      /*
+      |--------------------------------------------------------------------------
+      | CHECK USER ROOM
+      |--------------------------------------------------------------------------
+      */
+
+      const room =
+        this.server.sockets.adapter.rooms.get(
+          `user:${user.id}`,
         );
 
-      if (!exists) {
-        return;
-      }
+      const activeSockets =
+        room ? room.size : 0;
 
-      const count =
-        await this.redisService.decr(
-          `online:user:${user.id}`,
+      console.log(
+        `Active sockets for ${user.id}: ${activeSockets}`,
+      );
+
+      /*
+      |--------------------------------------------------------------------------
+      | USER IS COMPLETELY OFFLINE
+      |--------------------------------------------------------------------------
+      */
+
+      if (activeSockets === 0) {
+
+        console.log(
+          `Setting ${user.id} offline`,
         );
 
-      if (count <= 0) {
-
-        await this.redisService.del(
-          `online:user:${user.id}`,
+        await this.chatService.setUserOffline(
+          user.id,
         );
-
-        await this.chatService
-          .setUserOffline(
-            user.id,
-          );
 
         const conversingUsers =
-          await this.chatService
-            .getConversingUsers(
-              user.id,
-            );
+          await this.chatService.getConversingUsers(
+            user.id,
+          );
 
         for (const otherUserId of conversingUsers) {
 
           this.server
-            .to(
-              `user:${otherUserId}`,
-            )
-            .emit(
-              'userOffline',
-              {
-                userId: user.id,
-              },
-            );
+            .to(`user:${otherUserId}`)
+            .emit('userOffline', {
+              userId: user.id,
+            });
+
         }
+
+        console.log(
+          `Offline event sent for ${user.id}`,
+        );
       }
 
     } catch (error) {
 
-      console.log(
-        'Socket disconnect error',
-        error.message,
+      console.error(
+        'Socket disconnect error:',
+        error,
       );
+
     }
   }
   /*
