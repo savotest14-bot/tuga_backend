@@ -296,7 +296,7 @@ export class ReviewController {
         );
     }
 
-    @Get('trader/my-reviews')
+    @Get('own/my-reviews')
     @ApiBearerAuth('access-token')
     @ApiQuery({ name: 'page', required: false })
     @ApiQuery({ name: 'limit', required: false })
