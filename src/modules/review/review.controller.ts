@@ -33,6 +33,7 @@ import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { ReviewInteractionSource, ReviewType } from '@prisma/client';
 
 import { NoWorkReason } from '@prisma/client';
+import { GetMyReviewsDto } from './dto/get-my-review.dto';
 
 @ApiTags('Reviews')
 @Controller('reviews')
@@ -287,9 +288,23 @@ export class ReviewController {
     @ApiBearerAuth('access-token')
     async getMyReviews(
         @Req() req: Request,
+        @Query() query: GetMyReviewsDto,
     ) {
         return this.reviewService.getMyReviews(
             req['user'].id,
+            query,
+        );
+    }
+
+    @Get('trader/my-reviews')
+    @ApiBearerAuth('access-token')
+    async getTraderOwnReviews(
+        @Req() req: Request,
+        @Query() query: GetMyReviewsDto,
+    ) {
+        return this.reviewService.getTraderOwnReviews(
+            req['user'].id,
+            query,
         );
     }
 

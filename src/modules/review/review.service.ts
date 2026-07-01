@@ -11,7 +11,8 @@ import {
     ReviewType,
     ReviewModerationType,
     NoWorkReason,
-    ContentType
+    ContentType,
+    Prisma
 } from '@prisma/client';
 
 import { PrismaService } from 'src/prisma/prisma.service';
@@ -24,6 +25,7 @@ import { UpdateReviewDto } from './dto/update-review.dto';
 import * as fs from 'fs';
 import * as path from 'path';
 import { ModerationService } from '../moderation/moderation.service';
+import { GetMyReviewsDto } from './dto/get-my-review.dto';
 
 @Injectable()
 export class ReviewService {
@@ -71,7 +73,7 @@ export class ReviewService {
                 'Daily review limit exceeded',
             );
         }
-        
+
         /*
         |--------------------------------------------------------------------------
         | JOB VALIDATION
@@ -283,6 +285,9 @@ export class ReviewService {
                 `trader:reviews:${dto.traderId}`,
             ),
 
+            this.redisService.deleteByPattern(
+                `trader:reviews:${dto.traderId}:*`,
+            ),
             this.redisService.del(
                 'global:average_rating',
             ),
@@ -292,8 +297,8 @@ export class ReviewService {
             this.redisService.deleteByPattern(
                 `trader:reviews:${review.traderId}:*`,
             ),
-            this.redisService.del(
-                `customer:reviews:${customerId}`,
+            this.redisService.deleteByPattern(
+                `customer:reviews:${customerId}:*`,
             ),
             this.redisService.deleteByPattern(
                 `review:detail:${review.id}:*`,
@@ -463,7 +468,7 @@ export class ReviewService {
         const v = totalReviews;
         const m = 10;
 
-        const bayesianRating = 
+        const bayesianRating =
             ((v / (v + m)) * R) +
             ((m / (v + m)) * C);
 
@@ -648,7 +653,9 @@ export class ReviewService {
                 this.redisService.del(
                     `trader:reviews:${review.traderId}`,
                 ),
-
+                this.redisService.deleteByPattern(
+                    `trader:reviews:${review.traderId}:*`,
+                ),
                 this.redisService.del(
                     'global:average_rating',
                 ),
@@ -658,8 +665,8 @@ export class ReviewService {
                 this.redisService.deleteByPattern(
                     `trader:reviews:${review.traderId}:*`,
                 ),
-                this.redisService.del(
-                    `customer:reviews:${customerId}`,
+                this.redisService.deleteByPattern(
+                    `customer:reviews:${customerId}:*`,
                 ),
                 this.redisService.deleteByPattern(
                     `review:detail:${reviewId}:*`,
@@ -725,8 +732,8 @@ export class ReviewService {
             this.redisService.deleteByPattern(
                 `trader:reviews:${review.traderId}:*`,
             ),
-            this.redisService.del(
-                `customer:reviews:${customerId}`,
+            this.redisService.deleteByPattern(
+                `customer:reviews:${customerId}:*`,
             ),
             this.redisService.deleteByPattern(
                 `review:detail:${reviewId}:*`,
@@ -767,6 +774,117 @@ export class ReviewService {
     }
 
 
+
+    async getTraderOwnReviews(
+        traderId: string,
+        query: GetMyReviewsDto,
+    ) {
+        const {
+            page = 1,
+            limit = 10,
+            search,
+        } = query;
+
+        const skip = (page - 1) * limit;
+
+        const cacheKey = `trader:reviews:${traderId}:${page}:${limit}:${search || 'all'}`;
+
+        const cached = await this.redisService.get(cacheKey);
+
+        if (cached) {
+            return cached;
+        }
+
+        const where: Prisma.ReviewWhereInput = {
+            traderId,
+            status: ReviewStatus.APPROVED,
+            reviewRequestExpiresAt: {
+                gt: new Date(),
+            },
+        };
+
+        if (search) {
+            where.OR = [
+                {
+                    customer: {
+                        fullName: {
+                            contains: search,
+                            mode: 'insensitive',
+                        },
+                    },
+                },
+                {
+                    job: {
+                        title: {
+                            contains: search,
+                            mode: 'insensitive',
+                        },
+                    },
+                },
+                {
+                    title: {
+                        contains: search,
+                        mode: 'insensitive',
+                    },
+                },
+                {
+                    review: {
+                        contains: search,
+                        mode: 'insensitive',
+                    },
+                },
+            ];
+        }
+
+        const [reviews, total] = await this.prisma.$transaction([
+            this.prisma.review.findMany({
+                where,
+                include: {
+                    customer: {
+                        select: {
+                            id: true,
+                            fullName: true,
+                            profileImage: true,
+                        },
+                    },
+                    job: {
+                        select: {
+                            id: true,
+                            title: true,
+                        },
+                    },
+                },
+                orderBy: {
+                    createdAt: 'desc',
+                },
+                skip,
+                take: limit,
+            }),
+
+            this.prisma.review.count({
+                where,
+            }),
+        ]);
+
+        const result = {
+            message: 'Reviews fetched successfully',
+            data: reviews,
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages: Math.ceil(total / limit),
+            },
+        };
+
+        await this.redisService.set(
+            cacheKey,
+            result,
+            300,
+        );
+
+        return result;
+    }
     /*
     |--------------------------------------------------------------------------
     | GET TRADER REVIEWS
@@ -923,24 +1041,53 @@ export class ReviewService {
 
     async getMyReviews(
         customerId: string,
+        query: GetMyReviewsDto,
     ) {
 
-        const cacheKey =
-            `customer:reviews:${customerId}`;
+        const {
+            page = 1,
+            limit = 10,
+            search,
+        } = query;
 
-        const cached =
-            await this.redisService.get(cacheKey);
+        const skip = (page - 1) * limit;
+
+        const cacheKey = `customer:reviews:${customerId}:${page}:${limit}:${search || 'all'}`;
+
+        const cached = await this.redisService.get(cacheKey);
 
         if (cached) {
             return cached;
         }
 
-        const reviews =
-            await this.prisma.review.findMany({
-                where: {
-                    customerId,
-                },
+        const where: Prisma.ReviewWhereInput = {
+            customerId,
+        };
 
+        if (search) {
+            where.OR = [
+                {
+                    trader: {
+                        fullName: {
+                            contains: search,
+                            mode: 'insensitive',
+                        },
+                    },
+                },
+                {
+                    job: {
+                        title: {
+                            contains: search,
+                            mode: 'insensitive',
+                        },
+                    },
+                },
+            ];
+        }
+
+        const [reviews, total] = await this.prisma.$transaction([
+            this.prisma.review.findMany({
+                where,
                 include: {
                     trader: {
                         select: {
@@ -949,7 +1096,6 @@ export class ReviewService {
                             profileImage: true,
                         },
                     },
-
                     job: {
                         select: {
                             id: true,
@@ -957,23 +1103,33 @@ export class ReviewService {
                         },
                     },
                 },
-
+                skip,
+                take: limit,
                 orderBy: {
                     createdAt: 'desc',
                 },
-            });
+            }),
+
+            this.prisma.review.count({
+                where,
+            }),
+        ]);
 
         const result = {
-            message:
-                'Your reviews fetched successfully',
-
+            message: 'Your reviews fetched successfully',
             data: reviews,
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages: Math.ceil(total / limit),
+            },
         };
 
         await this.redisService.set(
             cacheKey,
             result,
-            300, // 5 minutes
+            300,
         );
 
         return result;
@@ -1052,6 +1208,9 @@ export class ReviewService {
             this.redisService.del(
                 `trader:reviews:${review.traderId}`,
             ),
+            this.redisService.deleteByPattern(
+                `trader:reviews:${review.traderId}:*`,
+            ),
 
             this.redisService.del(
                 'global:average_rating',
@@ -1062,8 +1221,8 @@ export class ReviewService {
             this.redisService.deleteByPattern(
                 `trader:reviews:${review.traderId}:*`,
             ),
-            this.redisService.del(
-                `customer:reviews:${customerId}`,
+            this.redisService.deleteByPattern(
+                `customer:reviews:${customerId}:*`,
             ),
             this.redisService.deleteByPattern(
                 `review:detail:${reviewId}:*`,
@@ -1177,8 +1336,9 @@ export class ReviewService {
             this.redisService.deleteByPattern(
                 `trader:reviews:${review.traderId}:*`,
             ),
-            this.redisService.del(
-                `customer:reviews:${review.customerId}`,
+
+            this.redisService.deleteByPattern(
+                `customer:reviews:${review.customerId}:*`,
             ),
             this.redisService.deleteByPattern(
                 `review:detail:${reviewId}:*`,
