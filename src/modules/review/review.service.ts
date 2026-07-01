@@ -787,8 +787,11 @@ export class ReviewService {
 
         const skip = (page - 1) * limit;
 
-        const cacheKey = `trader:reviews:${traderId}:${page}:${limit}:${search || 'all'}`;
-
+        const searchText = search?.trim();
+        await this.redisService.deleteByPattern(
+            `trader:reviews:${traderId}:*`,
+        );
+        const cacheKey = `trader:reviews:${traderId}:${page}:${limit}:${searchText || 'all'}`;
         const cached = await this.redisService.get(cacheKey);
 
         if (cached) {
@@ -803,35 +806,31 @@ export class ReviewService {
             },
         };
 
-        if (search) {
-            where.OR = [
+        if (searchText) {
+            where.AND = [
                 {
-                    customer: {
-                        fullName: {
-                            contains: search,
-                            mode: 'insensitive',
+                    OR: [
+                        {
+                            customer: {
+                                fullName: {
+                                    contains: searchText,
+                                    mode: 'insensitive',
+                                },
+                            },
                         },
-                    },
-                },
-                {
-                    job: {
-                        title: {
-                            contains: search,
-                            mode: 'insensitive',
+                        {
+                            title: {
+                                contains: searchText,
+                                mode: 'insensitive',
+                            },
                         },
-                    },
-                },
-                {
-                    title: {
-                        contains: search,
-                        mode: 'insensitive',
-                    },
-                },
-                {
-                    review: {
-                        contains: search,
-                        mode: 'insensitive',
-                    },
+                        {
+                            review: {
+                                contains: searchText,
+                                mode: 'insensitive',
+                            },
+                        },
+                    ],
                 },
             ];
         }
@@ -845,12 +844,6 @@ export class ReviewService {
                             id: true,
                             fullName: true,
                             profileImage: true,
-                        },
-                    },
-                    job: {
-                        select: {
-                            id: true,
-                            title: true,
                         },
                     },
                 },
