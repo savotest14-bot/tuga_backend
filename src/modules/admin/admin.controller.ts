@@ -379,4 +379,25 @@ export class AdminController {
     ) {
         return this.adminService.getAllQuotes(query);
     }
+
+    @Get('job-action-logs')
+    @ApiBearerAuth('access-token')
+    @ApiOperation({ summary: 'Get all admin job action logs' })
+    @ApiQuery({ name: 'page', required: false, type: Number })
+    @ApiQuery({ name: 'limit', required: false, type: Number })
+    @ApiQuery({ name: 'jobId', required: false, type: String })
+    @ApiQuery({ name: 'action', required: false, type: String })
+    async getAdminJobActionLogs(
+        @Query('page') page = '1',
+        @Query('limit') limit = '10',
+        @Query('jobId') jobId?: string,
+        @Query('action') action?: string,
+    ) {
+        return this.adminService.getAdminJobActionLogs({
+            page: Number(page),
+            limit: Number(limit),
+            jobId,
+            action,
+        });
+    }
 }

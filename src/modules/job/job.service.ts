@@ -151,6 +151,12 @@ export class JobService {
 
         await this.moderationService.scanContent(
             customerId,
+            dto.title,
+            ContentType.JOB,
+            job.id,
+        );
+        await this.moderationService.scanContent(
+            customerId,
             dto.description,
             ContentType.JOB,
             job.id,

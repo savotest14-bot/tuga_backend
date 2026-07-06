@@ -101,12 +101,10 @@ export class AuthService {
             where: {
                 id: user.id,
             },
-
             data: {
                 token: accessToken,
             },
         });
-
         return {
             message:
                 'Customer registered successfully',
@@ -180,8 +178,8 @@ export class AuthService {
 
         const hashedPassword =
             await bcrypt.hash(data.password, 10);
-
-        // Create User
+        
+            // Create User
 
         const user =
             await this.prisma.user.create({
@@ -445,7 +443,6 @@ export class AuthService {
         | FIND PLAN
         |--------------------------------------------------------------------------
         */
-
         const plan =
             await this.prisma.subscriptionPlan.findUnique({
                 where: {
@@ -458,13 +455,11 @@ export class AuthService {
                 'Subscription plan not found',
             );
         }
-
         /*
         |--------------------------------------------------------------------------
         | FIND PRICE
         |--------------------------------------------------------------------------
         */
-
         const price =
             await this.prisma.subscriptionPrice.findUnique({
                 where: {

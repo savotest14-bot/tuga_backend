@@ -2515,4 +2515,67 @@ export class AdminService {
 
         return result;
     }
+
+    async getAdminJobActionLogs(query: {
+        page?: number;
+        limit?: number;
+        jobId?: string;
+        action?: string;
+    }) {
+        const {
+            page = 1,
+            limit = 10,
+            jobId,
+            action,
+        } = query;
+
+        const where: Prisma.AdminJobActionLogWhereInput = {
+            ...(jobId && { jobId }),
+            ...(action && {
+                action: {
+                    contains: action,
+                    mode: 'insensitive',
+                },
+            }),
+        };
+
+        const [logs, total] = await this.prisma.$transaction([
+            this.prisma.adminJobActionLog.findMany({
+                where,
+                skip: (page - 1) * limit,
+                take: limit,
+                orderBy: {
+                    createdAt: 'desc',
+                },
+                include: {
+                    admin: {
+                        select: {
+                            id: true,
+                            fullName: true,
+                            email: true,
+                        },
+                    },
+                    job: {
+                        select: {
+                            id: true,
+                            title: true,
+                            status: true,
+                        },
+                    },
+                },
+            }),
+            this.prisma.adminJobActionLog.count({ where }),
+        ]);
+
+        return {
+            success: true,
+            data: logs,
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages: Math.ceil(total / limit),
+            },
+        };
+    }
 }

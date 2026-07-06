@@ -87,6 +87,8 @@ model User {
   contactSubmissions ContactSubmission[]
 
   contentFlags ContentFlag[]
+
+  adminJobActionLogs AdminJobActionLog[]
   
   @@index([role, status, isVerified])
   @@index([latitude, longitude])
@@ -728,6 +730,8 @@ model Job {
 
   escalationLogs JobEscalationLog[]
 
+  adminJobActionLogs AdminJobActionLog[]
+
   escalationVersion Int @default(0)
 
   @@index([status, quotesReceived])
@@ -1094,7 +1098,6 @@ model Report {
   @@index([status])
 }
 
-
 model SavedTrader {
   id String @id @default(uuid())
 
@@ -1265,4 +1268,7 @@ model AdminJobActionLog {
   action     String
   metadata   Json?
   createdAt  DateTime @default(now())
+
+  job   Job  @relation(fields: [jobId], references: [id])
+  admin User @relation(fields: [adminId], references: [id])
 }
