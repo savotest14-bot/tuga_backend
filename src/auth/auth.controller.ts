@@ -18,7 +18,7 @@ import { ChangePasswordDto } from './dto/change-password.dto';
 import { TraderRegisterStep1Dto } from './dto/trader-register-step1.dto';
 import { TraderRegisterStep2Dto } from './dto/trader-register-step2.dto';
 import { TraderRegisterStep3Dto } from './dto/trader-register-step3.dto';
-import { ApiBearerAuth, ApiBody, ApiConsumes } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation } from '@nestjs/swagger';
 import {
   UseInterceptors,
   UploadedFiles,
@@ -31,6 +31,7 @@ import {
 import { multerOptions } from '../common/helpers/multer.helper';
 import { UpdateProfileDto } from './dto/updateProfile.dto';
 import { UpdateTraderAssetsDto } from './dto/update-trader-assest.dto';
+import { VerifyOtpDto } from './dto/verify-otp.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -490,6 +491,29 @@ export class AuthController {
     );
   }
 
+  @Post('resend-verification-otp')
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Resend verification OTP' })
+  async resendVerificationOtp(
+    @Req() req: Request,
+  ) {
+    return this.authService.resendVerificationOtp(
+      req['user'].id,
+    );
+  }
+
+  @Post('verify-otp')
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Verify email OTP' })
+  async verifyOtp(
+    @Req() req: Request,
+    @Body() dto: VerifyOtpDto,
+  ) {
+    return this.authService.verifyOtp(
+      req['user'].id,
+      dto,
+    );
+  }
 
 
 }

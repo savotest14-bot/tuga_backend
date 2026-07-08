@@ -354,6 +354,20 @@ export class CustomerService {
                                 phone: true,
                                 profileImage: true,
                                 role: true,
+                                traderProfile: {
+                                    select: {
+                                        location: true,
+                                    },
+                                },
+                                traderMetrics: {
+                                    select: {
+                                        averageRating: true,
+                                        bayesianRating: true,
+                                        totalReviews: true,
+                                        completedJobs: true,
+                                        responseRate: true,
+                                    },
+                                },
                             },
                         },
                     },

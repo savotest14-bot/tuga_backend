@@ -118,6 +118,14 @@ export class AuthModule
         {
           path: 'auth/update-trader-assets',
           method: RequestMethod.PUT,
+        },
+        {
+          path: 'auth/resend-verification-otp',
+          method: RequestMethod.POST,
+        },
+        {
+          path: 'auth/verify-otp',
+          method: RequestMethod.POST,
         }
       );
   }

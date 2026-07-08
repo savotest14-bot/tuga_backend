@@ -1,6 +1,7 @@
 import {
     BadRequestException,
     Injectable,
+    NotFoundException,
     UnauthorizedException,
 } from '@nestjs/common';
 import { v4 as uuidv4 } from 'uuid';
@@ -26,6 +27,8 @@ import { NotificationService } from 'src/modules/notification/notification.servi
 import { Prisma, ContentType } from '@prisma/client';
 import { RedisService } from 'src/redis/redis.service';
 import { ModerationService } from 'src/modules/moderation/moderation.service';
+import { VerifyOtpDto } from './dto/verify-otp.dto';
+import { isEAN } from 'class-validator';
 
 @Injectable()
 export class AuthService {
@@ -38,15 +41,93 @@ export class AuthService {
         private readonly moderationService: ModerationService,
     ) { }
 
+    // async customerRegister(
+    //     data: CustomerRegisterDto,
+    // ) {
+
+    //     // Password Match Check
+    //     if (
+    //         data.password !==
+    //         data.confirmPassword
+    //     ) {
+    //         throw new BadRequestException(
+    //             'Passwords do not match',
+    //         );
+    //     }
+
+    //     const existingUser =
+    //         await this.prisma.user.findUnique({
+    //             where: {
+    //                 email: data.email,
+    //             },
+    //         });
+
+    //     if (existingUser) {
+    //         throw new BadRequestException(
+    //             'Email already exists',
+    //         );
+    //     }
+
+    //     const hashedPassword =
+    //         await bcrypt.hash(data.password, 10);
+
+    //     const user =
+    //         await this.prisma.user.create({
+    //             data: {
+    //                 fullName: data.fullName,
+
+    //                 email: data.email,
+
+    //                 password: hashedPassword,
+
+    //                 role: Role.CUSTOMER,
+
+    //                 status: 'ACTIVE',
+
+    //                 acceptedTerms:
+    //                     data.isCheckedTermsCondition,
+
+    //                 latitude: data.latitude,
+
+    //                 longitude: data.longitude,
+    //             },
+    //         });
+
+    //     const accessToken =
+    //         await this.jwtService.signAsync({
+    //             id: user.id,
+    //             email: user.email,
+    //             role: user.role,
+    //         });
+
+    //     await this.prisma.user.update({
+    //         where: {
+    //             id: user.id,
+    //         },
+    //         data: {
+    //             token: accessToken,
+    //         },
+    //     });
+    //     return {
+    //         message:
+    //             'Customer registered successfully',
+
+    //         accessToken,
+
+    //         user: {
+    //             id: user.id,
+    //             fullName: user.fullName,
+    //             email: user.email,
+    //             role: user.role,
+    //         },
+    //     };
+    // }
+
     async customerRegister(
         data: CustomerRegisterDto,
     ) {
-
         // Password Match Check
-        if (
-            data.password !==
-            data.confirmPassword
-        ) {
+        if (data.password !== data.confirmPassword) {
             throw new BadRequestException(
                 'Passwords do not match',
             );
@@ -65,30 +146,39 @@ export class AuthService {
             );
         }
 
-        const hashedPassword =
-            await bcrypt.hash(data.password, 10);
+        const hashedPassword = await bcrypt.hash(
+            data.password,
+            10,
+        );
+
+        // Generate 6-digit OTP
+        const otp = Math.floor(
+            100000 + Math.random() * 900000,
+        ).toString();
 
         const user =
             await this.prisma.user.create({
                 data: {
                     fullName: data.fullName,
-
                     email: data.email,
-
                     password: hashedPassword,
-
                     role: Role.CUSTOMER,
-
                     status: 'ACTIVE',
-
                     acceptedTerms:
                         data.isCheckedTermsCondition,
-
                     latitude: data.latitude,
-
                     longitude: data.longitude,
+
+                    // Save OTP
+                    verificationOtp: otp,
+                    verificationOtpExpiresAt: new Date(
+                        Date.now() + 10 * 60 * 1000,
+                    ),
                 },
             });
+
+        // TODO: Send OTP via Email
+        await this.mailService.sendVerificationOtp(user.email, otp);
 
         const accessToken =
             await this.jwtService.signAsync({
@@ -105,17 +195,18 @@ export class AuthService {
                 token: accessToken,
             },
         });
+
         return {
             message:
-                'Customer registered successfully',
-
+                'Customer registered successfully. Please verify your email with the OTP sent.',
             accessToken,
-
             user: {
                 id: user.id,
                 fullName: user.fullName,
                 email: user.email,
                 role: user.role,
+                isEmailVerified: user.isEmailVerified,
+                otp: otp, // For testing purposes; remove in production
             },
         };
     }
@@ -178,8 +269,12 @@ export class AuthService {
 
         const hashedPassword =
             await bcrypt.hash(data.password, 10);
-        
-            // Create User
+
+        const otp = Math.floor(
+            100000 + Math.random() * 900000,
+        ).toString();
+
+        // Create User
 
         const user =
             await this.prisma.user.create({
@@ -208,6 +303,11 @@ export class AuthService {
 
                     acceptedTerms:
                         data.isCheckedTermsCondition,
+
+                    verificationOtp: otp,
+                    verificationOtpExpiresAt: new Date(
+                        Date.now() + 10 * 60 * 1000,
+                    ),
 
                     traderProfile: {
                         create: {
@@ -244,13 +344,18 @@ export class AuthService {
                 token: accessToken,
             },
         });
-
+        await this.mailService.sendVerificationOtp(
+            user.email,
+            otp,
+        );
         return {
             message:
                 'Step 1 completed',
 
             accessToken,
-
+            otp: otp, // For testing purposes; remove in production
+            isEmailVerified:
+                user.isEmailVerified,
             registrationStep:
                 user.traderProfile
                     ?.registrationStep,
@@ -1187,6 +1292,7 @@ export class AuthService {
                 fullName: user.fullName,
                 email: user.email,
                 role: user.role,
+                isEmailVerified:user.isEmailVerified,
             },
         };
     }
@@ -1736,8 +1842,9 @@ export class AuthService {
 
                 if (logo !== user.traderProfile?.logo) traderData.logo = logo;
                 if (document !== user.traderProfile?.document) traderData.document = document;
-
+               console.log('documentChanged', documentChanged);
                 if (documentChanged) {
+                    console.log('documentChanged true');
                     traderData.verificationStatus = 'PENDING';
                     traderData.verifiedAt = null;
                     traderData.verifiedBy = null;
@@ -2117,5 +2224,108 @@ export class AuthService {
         };
     }
 
+    async resendVerificationOtp(userId: string) {
+        const user = await this.prisma.user.findUnique({
+            where: {
+                id: userId,
+            },
+        });
+
+        if (!user) {
+            throw new NotFoundException('User not found');
+        }
+
+        if (user.isEmailVerified) {
+            throw new BadRequestException(
+                'Email is already verified',
+            );
+        }
+
+        // Generate OTP
+        const otp = Math.floor(
+            100000 + Math.random() * 900000,
+        ).toString();
+
+        // Update OTP
+        await this.prisma.user.update({
+            where: {
+                id: user.id,
+            },
+            data: {
+                verificationOtp: otp,
+                verificationOtpExpiresAt: new Date(
+                    Date.now() + 10 * 60 * 1000,
+                ),
+            },
+        });
+
+        // Send email
+        await this.mailService.sendVerificationOtp(
+            user.email,
+            otp,
+        );
+
+        return {
+            message: 'Verification OTP sent successfully.',
+            otp: otp, // For testing purposes; remove in production
+        };
+    }
+
+    async verifyOtp(
+        userId: string,
+        dto: VerifyOtpDto,
+    ) {
+        const user = await this.prisma.user.findUnique({
+            where: {
+                id: userId,
+            },
+        });
+
+        if (!user) {
+            throw new NotFoundException('User not found');
+        }
+
+        if (user.isEmailVerified) {
+            throw new BadRequestException(
+                'Email is already verified',
+            );
+        }
+
+        if (!user.verificationOtp) {
+            throw new BadRequestException(
+                'No OTP found. Please request a new OTP.',
+            );
+        }
+
+        if (
+            !user.verificationOtpExpiresAt ||
+            user.verificationOtpExpiresAt < new Date()
+        ) {
+            throw new BadRequestException(
+                'OTP has expired. Please request a new OTP.',
+            );
+        }
+
+        if (user.verificationOtp !== dto.otp) {
+            throw new BadRequestException(
+                'Invalid OTP.',
+            );
+        }
+
+        await this.prisma.user.update({
+            where: {
+                id: user.id,
+            },
+            data: {
+                isEmailVerified: true,
+                verificationOtp: null,
+                verificationOtpExpiresAt: null,
+            },
+        });
+
+        return {
+            message: 'Email verified successfully.',
+        };
+    }
 
 }
