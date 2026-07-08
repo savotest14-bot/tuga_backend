@@ -1292,7 +1292,7 @@ export class AuthService {
                 fullName: user.fullName,
                 email: user.email,
                 role: user.role,
-                isEmailVerified:user.isEmailVerified,
+                isEmailVerified: user.isEmailVerified,
             },
         };
     }
@@ -1778,10 +1778,12 @@ export class AuthService {
             }
 
             /* ===================== PHONE CHECK ===================== */
-            if (body.phone && body.phone !== user.phone) {
+            const phone = body.phone?.trim();
+
+            if (phone && phone !== user.phone) {
                 const phoneExists = await this.prisma.user.findFirst({
                     where: {
-                        phone: body.phone,
+                        phone,
                         NOT: { id: userId },
                     },
                 });
@@ -1842,7 +1844,7 @@ export class AuthService {
 
                 if (logo !== user.traderProfile?.logo) traderData.logo = logo;
                 if (document !== user.traderProfile?.document) traderData.document = document;
-               console.log('documentChanged', documentChanged);
+                console.log('documentChanged', documentChanged);
                 if (documentChanged) {
                     console.log('documentChanged true');
                     traderData.verificationStatus = 'PENDING';

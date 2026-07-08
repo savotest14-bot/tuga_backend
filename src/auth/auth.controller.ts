@@ -58,89 +58,70 @@ export class AuthController {
     );
   }
 
-
   @Put('trader/register-step-2')
-
   @ApiBearerAuth('access-token')
-
   @ApiConsumes('multipart/form-data')
-
   @ApiBody({
     schema: {
       type: 'object',
-
       properties: {
-
         companyName: {
           type: 'string',
           example: 'ABC Plumbing Ltd',
         },
-
         companyType: {
           type: 'string',
           example: 'Private Limited',
         },
-
         registrationNumber: {
           type: 'string',
           example: 'REG123456',
         },
-
         skillServiceIds: {
           type: 'array',
           items: {
             type: 'string',
           },
         },
-
         subCategoryIds: {
           type: 'array',
           items: {
             type: 'string',
           },
         },
-
         about: {
           type: 'string',
           example:
             'Professional plumbing services',
         },
-
         location: {
           type: 'string',
           example: 'Dubai Marina',
         },
-
         minimumExperience: {
           type: 'boolean',
           example: true,
         },
-
         authorisedBusiness: {
           type: 'boolean',
           example: true,
         },
-
         understandVettingPolicy: {
           type: 'boolean',
           example: true,
         },
-
         acceptedPrivacyPolicy: {
           type: 'boolean',
           example: true,
         },
-
         acceptedTermsConditions: {
           type: 'boolean',
           example: true,
         },
-
         logo: {
           type: 'string',
           format: 'binary',
         },
-
         document: {
           type: 'string',
           format: 'binary',
@@ -191,12 +172,9 @@ export class AuthController {
 
 
   @ApiBearerAuth('access-token')
-
   @Put('trader/register-step-3')
-
   async traderRegisterStep3(
     @Req() req: Request,
-
     @Body()
     body: TraderRegisterStep3Dto,
   ) {
@@ -212,7 +190,6 @@ export class AuthController {
   async registrationStatus(
     @Req() req: Request,
   ) {
-
     return this.authService.registrationStatus(
       req['user'].id,
     );
@@ -226,12 +203,10 @@ export class AuthController {
   }
 
   @ApiBearerAuth('access-token')
-
   @Post('logout')
   async logout(
     @Req() req: Request,
   ) {
-
     return this.authService.logout(
       req['user'].id,
     );
