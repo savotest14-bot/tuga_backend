@@ -7,6 +7,7 @@ import {
     Post,
     Query,
     Req,
+    ParseUUIDPipe,
 } from '@nestjs/common';
 
 import type { Request } from 'express';
@@ -69,7 +70,7 @@ export class ReportController {
     async getMyReportDetails(
         @Req() req: Request,
 
-        @Param('id')
+        @Param('id', ParseUUIDPipe)
         reportId: string,
     ) {
 
@@ -97,7 +98,7 @@ export class ReportController {
     @ApiBearerAuth('access-token')
     async getReportById(
         @Req() req: Request,
-        @Param('id')
+        @Param('id', ParseUUIDPipe)
         reportId: string,
     ) {
         return this.reportService.getReportById(
@@ -111,7 +112,7 @@ export class ReportController {
     async updateStatus(
         @Req() req: Request,
 
-        @Param('id')
+        @Param('id', ParseUUIDPipe)
         reportId: string,
 
         @Body()

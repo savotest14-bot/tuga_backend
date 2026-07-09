@@ -7,7 +7,7 @@ import {
   IsInt,
 } from 'class-validator';
 
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 
 import {
   ApiPropertyOptional,
@@ -40,6 +40,7 @@ export class CreateQuoteDto {
   @ApiPropertyOptional({
     example: 'I can complete this work quickly',
   })
+  @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)
   @IsOptional()
   @IsString()
   message?: string;

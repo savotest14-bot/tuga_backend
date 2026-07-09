@@ -4,6 +4,7 @@ import {
   IsNumber,
   IsOptional,
   Min,
+  Max,
 } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -16,6 +17,7 @@ export class SuggestedTradersDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(100)
   limit = 50;
 
   @ApiPropertyOptional({

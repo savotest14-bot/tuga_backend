@@ -8,6 +8,7 @@ import {
   Query,
   UploadedFile,
   UseInterceptors,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -200,7 +201,7 @@ export class MasterController {
     'skill-services/:categoryId',
   )
   getSkillServicesByCategory(
-    @Param('categoryId')
+    @Param('categoryId', ParseUUIDPipe)
     categoryId: string,
   ) {
     return this.masterService.getSkillServicesByCategory(
@@ -213,7 +214,7 @@ export class MasterController {
     'sub-categories/:skillServiceId',
   )
   getSubCategoriesBySkillService(
-    @Param('skillServiceId')
+    @Param('skillServiceId', ParseUUIDPipe)
     skillServiceId: string,
   ) {
     return this.masterService.getSubCategoriesBySkillService(
@@ -225,7 +226,7 @@ export class MasterController {
   @ApiBearerAuth('access-token')
   @Patch('category/:id/toggle')
   toggleCategory(
-    @Param('id')
+    @Param('id', ParseUUIDPipe)
     id: string,
   ) {
     return this.masterService.toggleCategory(
@@ -238,7 +239,7 @@ export class MasterController {
   @ApiBearerAuth('access-token')
   @Patch('skill-service/:id/toggle')
   toggleSkillService(
-    @Param('id')
+    @Param('id', ParseUUIDPipe)
     id: string,
   ) {
     return this.masterService.toggleSkillService(
@@ -251,7 +252,7 @@ export class MasterController {
   @ApiBearerAuth('access-token')
   @Patch('sub-category/:id/toggle')
   toggleSubCategory(
-    @Param('id')
+    @Param('id', ParseUUIDPipe)
     id: string,
   ) {
     return this.masterService.toggleSubCategory(
@@ -287,7 +288,7 @@ export class MasterController {
     ),
   )
   updateCategory(
-    @Param('id')
+    @Param('id', ParseUUIDPipe)
     id: string,
 
     @Body()
@@ -336,7 +337,7 @@ export class MasterController {
     ),
   )
   updateSkillService(
-    @Param('id')
+    @Param('id', ParseUUIDPipe)
     id: string,
 
     @Body()
@@ -385,7 +386,7 @@ export class MasterController {
     ),
   )
   updateSubCategory(
-    @Param('id')
+    @Param('id', ParseUUIDPipe)
     id: string,
 
     @Body()

@@ -6,6 +6,7 @@ import {
   Get,
   Param,
   Patch,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 
 import {
@@ -47,7 +48,7 @@ export class PlansController {
 
   @Patch(':id')
   async updatePlan(
-    @Param('id')
+    @Param('id', ParseUUIDPipe)
     id: string,
 
     @Body()

@@ -5,6 +5,7 @@ import {
     Param,
     Post,
     Req,
+    ParseUUIDPipe,
 } from '@nestjs/common';
 
 import {
@@ -35,7 +36,7 @@ export class ConversationController {
         @Req()
         req: Request,
 
-        @Param('traderId')
+        @Param('traderId', ParseUUIDPipe)
         traderId: string,
 
         @Body()

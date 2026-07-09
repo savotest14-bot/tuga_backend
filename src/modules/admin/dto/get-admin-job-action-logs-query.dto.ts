@@ -1,8 +1,8 @@
+import { Type, Transform } from 'class-transformer';
+import { IsOptional, IsInt, Min, Max, IsUUID, IsString } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Transform, Type } from 'class-transformer';
-import { IsInt, IsOptional, IsString, Min, Max } from 'class-validator';
 
-export class GetMyReviewsDto {
+export class GetAdminJobActionLogsQueryDto {
   @ApiPropertyOptional({ default: 1 })
   @IsOptional()
   @Type(() => Number)
@@ -20,7 +20,12 @@ export class GetMyReviewsDto {
 
   @ApiPropertyOptional()
   @IsOptional()
+  @IsUUID()
+  jobId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
   @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)
   @IsString()
-  search?: string;
+  action?: string;
 }

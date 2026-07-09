@@ -7,6 +7,7 @@ import {
   Post,
   Query,
   Req,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 
 import {
@@ -22,6 +23,7 @@ import {
 import type { Request }
   from 'express';
 import { GetSavedTradersDto } from './dto/get-saved-trader.dto';
+import { SearchTradersQueryDto } from './dto/search-traders-query.dto';
 
 @ApiTags('Customer')
 @Controller('customer')
@@ -84,56 +86,22 @@ export class CustomerController {
 
   @Get('search-traders')
   async searchTraders(
-
     @Req()
     req: any,
 
-    @Query('page')
-    page: number = 1,
-
-    @Query('limit')
-    limit: number = 10,
-
-    @Query('search')
-    search?: string,
-
-    @Query('categoryId')
-    categoryId?: string,
-
-    @Query('verified')
-    verified?: string,
-
-    @Query('latitude')
-    latitude?: string,
-
-    @Query('longitude')
-    longitude?: string,
-
-    @Query('topRated')
-    topRated?: string,
+    @Query()
+    query: SearchTradersQueryDto,
   ) {
 
     return this.customerService.searchTraders(
-
-      Number(page),
-
-      Number(limit),
-
-      search,
-
-      categoryId,
-
-      verified,
-
-      topRated,
-
-      latitude
-        ? Number(latitude)
-        : undefined,
-
-      longitude
-        ? Number(longitude)
-        : undefined,
+      query.page ?? 1,
+      query.limit ?? 10,
+      query.search,
+      query.categoryId,
+      query.verified !== undefined ? String(query.verified) : undefined,
+      query.topRated !== undefined ? String(query.topRated) : undefined,
+      query.latitude,
+      query.longitude,
     );
   }
 
@@ -141,7 +109,7 @@ export class CustomerController {
   @ApiBearerAuth('access-token')
   async toggleSaveTrader(
     @Req() req: Request,
-    @Param('traderId') traderId: string,
+    @Param('traderId', ParseUUIDPipe) traderId: string,
   ) {
     return this.customerService.toggleSaveTrader(
       req['user'].id,

@@ -5,7 +5,9 @@ import {
   IsBoolean,
   IsInt,
   IsEnum,
+  Min,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 
 import {
   ApiProperty,
@@ -22,6 +24,7 @@ export class CreateFaqDto {
   @ApiProperty({
     example: 'How do I create an account?',
   })
+  @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)
   @IsString()
   @IsNotEmpty()
   question: string;
@@ -29,6 +32,7 @@ export class CreateFaqDto {
   @ApiProperty({
     example: 'You can create an account by clicking Sign Up.',
   })
+  @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)
   @IsString()
   @IsNotEmpty()
   answer: string;
@@ -54,6 +58,7 @@ export class CreateFaqDto {
     default: 0,
   })
   @IsInt()
+  @Min(0)
   @IsOptional()
   sortOrder?: number;
 }

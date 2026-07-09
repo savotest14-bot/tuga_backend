@@ -9,6 +9,7 @@ import {
     Post,
     Query,
     Req,
+    ParseUUIDPipe,
 } from '@nestjs/common';
 
 import {
@@ -30,6 +31,13 @@ import { ManualDistributionDto } from './dto/manually-distribution.dto';
 import { SuggestedTradersDto } from './dto/get-suggested-trader.dto';
 import { GetReviewsDto } from './dto/get-review.dto';
 import { GetAllQuotesDto } from './dto/get-all-quote.dto';
+import { GetCustomersQueryDto } from './dto/get-customers-query.dto';
+import { GetTradersQueryDto } from './dto/get-traders-query.dto';
+import { GetPendingReviewsQueryDto } from './dto/get-pending-reviews-query.dto';
+import { GetCategoryChangeRequestsQueryDto } from './dto/get-category-change-requests-query.dto';
+import { GetAdminJobActionLogsQueryDto } from './dto/get-admin-job-action-logs-query.dto';
+
+import type { Request } from 'express';
 
 @ApiTags('Admin')
 
@@ -77,29 +85,14 @@ export class AdminController {
     })
 
     async getCustomers(
-
-        @Query('page')
-        page: number = 1,
-
-        @Query('limit')
-        limit: number = 10,
-
-        @Query('status')
-        status?: string,
-
-        @Query('search')
-        search?: string,
+        @Query() query: GetCustomersQueryDto,
     ) {
 
         return this.adminService.getCustomers(
-
-            Number(page),
-
-            Number(limit),
-
-            status,
-
-            search,
+            query.page ?? 1,
+            query.limit ?? 10,
+            query.status,
+            query.search,
         );
     }
 
@@ -139,29 +132,14 @@ export class AdminController {
     })
 
     async getTraders(
-
-        @Query('page')
-        page: number = 1,
-
-        @Query('limit')
-        limit: number = 10,
-
-        @Query('status')
-        status?: string,
-
-        @Query('search')
-        search?: string,
+        @Query() query: GetTradersQueryDto,
     ) {
 
         return this.adminService.getTraders(
-
-            Number(page),
-
-            Number(limit),
-
-            status,
-
-            search,
+            query.page ?? 1,
+            query.limit ?? 10,
+            query.status,
+            query.search,
         );
     }
 
@@ -171,7 +149,7 @@ export class AdminController {
     @ApiBearerAuth('access-token')
     async verifyTrader(
 
-        @Param('id')
+        @Param('id', ParseUUIDPipe)
         id: string,
 
         @Body()
@@ -187,7 +165,7 @@ export class AdminController {
     @ApiBearerAuth('access-token')
     async approveReview(
         @Req() req: Request,
-        @Param('reviewId') reviewId: string,
+        @Param('reviewId', ParseUUIDPipe) reviewId: string,
     ) {
         return this.adminService.approveReview(
             reviewId,
@@ -217,25 +195,19 @@ export class AdminController {
     })
 
     async getPendingReviews(
-
-        @Query('page')
-        page: number = 1,
-
-        @Query('limit')
-        limit: number = 10,
-
+        @Query() query: GetPendingReviewsQueryDto,
     ) {
 
         return this.adminService.getPendingReviews(
-            Number(page),
-            Number(limit),
+            query.page ?? 1,
+            query.limit ?? 10,
         );
     }
 
     @Post('category-requests/:requestId/review')
     @ApiBearerAuth('access-token')
     async reviewCategoryRequest(
-        @Param('requestId')
+        @Param('requestId', ParseUUIDPipe)
         requestId: string,
 
         @Body()
@@ -273,21 +245,19 @@ export class AdminController {
         ],
     })
     async getCategoryChangeRequests(
-        @Query('page') page?: number,
-        @Query('limit') limit?: number,
-        @Query('status') status?: string,
+        @Query() query: GetCategoryChangeRequestsQueryDto,
     ) {
         return this.adminService.getCategoryChangeRequests(
-            page,
-            limit,
-            status,
+            query.page ?? 1,
+            query.limit ?? 10,
+            query.status,
         );
     }
 
     @Get('users/:userId')
     @ApiBearerAuth('access-token')
     async getUserDetails(
-        @Param('userId') userId: string,
+        @Param('userId', ParseUUIDPipe) userId: string,
     ) {
         return this.adminService.getUserDetails(
             userId,
@@ -306,7 +276,7 @@ export class AdminController {
 
     @Get('jobs/:id')
     @ApiBearerAuth('access-token')
-    async getJobDetails(@Param('id') id: string) {
+    async getJobDetails(@Param('id', ParseUUIDPipe) id: string) {
         return this.adminService.getJobDetails(id);
     }
 
@@ -332,7 +302,7 @@ export class AdminController {
     @ApiBearerAuth('access-token')
     async distributeManually(
         @Req() req: Request,
-        @Param('jobId') jobId: string,
+        @Param('jobId', ParseUUIDPipe) jobId: string,
         @Body() dto: ManualDistributionDto,
     ) {
         return this.adminService.distributeManually(
@@ -360,14 +330,14 @@ export class AdminController {
         type: Number,
     })
     async getSuggestedTraders(
-        @Param('jobId') jobId: string,
+        @Param('jobId', ParseUUIDPipe) jobId: string,
         @Query() query: SuggestedTradersDto,
     ) {
         console.log('SUGGESTED TRADERS HIT');
 
         return this.adminService.getSuggestedTraders(
             jobId,
-            query.limit,
+            query.limit ?? 50,
             query.radius,
         );
     }
@@ -388,16 +358,13 @@ export class AdminController {
     @ApiQuery({ name: 'jobId', required: false, type: String })
     @ApiQuery({ name: 'action', required: false, type: String })
     async getAdminJobActionLogs(
-        @Query('page') page = '1',
-        @Query('limit') limit = '10',
-        @Query('jobId') jobId?: string,
-        @Query('action') action?: string,
+        @Query() query: GetAdminJobActionLogsQueryDto,
     ) {
         return this.adminService.getAdminJobActionLogs({
-            page: Number(page),
-            limit: Number(limit),
-            jobId,
-            action,
+            page: query.page,
+            limit: query.limit,
+            jobId: query.jobId,
+            action: query.action,
         });
     }
 }

@@ -43,7 +43,7 @@ export class AuthMiddleware
           'Invalid token',
         );
       }
-// console.log("toekn", token)
+
       const decoded =
         await this.jwtService.verifyAsync(
           token,

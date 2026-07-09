@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsEnum, IsOptional } from 'class-validator';
+import { IsEnum, IsInt, IsOptional, Min, Max } from 'class-validator';
 import { JobStatus } from '@prisma/client';
 
 export class GetJobsDto {
@@ -10,6 +10,8 @@ export class GetJobsDto {
   })
   @IsOptional()
   @Type(() => Number)
+  @IsInt()
+  @Min(1)
   page?: number = 1;
 
   @ApiPropertyOptional({
@@ -18,6 +20,9 @@ export class GetJobsDto {
   })
   @IsOptional()
   @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
   limit?: number = 10;
 
   @ApiPropertyOptional({

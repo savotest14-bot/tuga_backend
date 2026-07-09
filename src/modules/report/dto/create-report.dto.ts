@@ -2,7 +2,11 @@ import {
     IsEnum,
     IsString,
     ValidateIf,
+    IsUUID,
+    IsNotEmpty,
+    Length,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 
 import {
     ApiProperty,
@@ -25,9 +29,10 @@ export class CreateReportDto {
     reportType: ReportType;
 
     @ApiProperty({
-        example: 'review-id',
+        example: '69213d76-2979-45d2-a959-1440d3979461',
     })
-    @IsString()
+    @IsNotEmpty()
+    @IsUUID()
     targetId: string;
 
     @ApiProperty({
@@ -45,6 +50,9 @@ export class CreateReportDto {
         (dto) =>
             dto.reason === ReportReason.OTHER,
     )
+    @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)
     @IsString()
+    @IsNotEmpty()
+    @Length(5, 500)
     customReason?: string;
 }

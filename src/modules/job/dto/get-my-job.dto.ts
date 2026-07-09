@@ -1,5 +1,5 @@
-import { Type } from 'class-transformer';
-import { IsOptional, IsString, IsInt } from 'class-validator';
+import { Type, Transform } from 'class-transformer';
+import { IsOptional, IsString, IsInt, Min, Max } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class GetMyJobsDto {
@@ -11,6 +11,7 @@ export class GetMyJobsDto {
   @IsOptional()
   @Type(() => Number)
   @IsInt()
+  @Min(1)
   page: number = 1;
 
   @ApiPropertyOptional({
@@ -21,6 +22,8 @@ export class GetMyJobsDto {
   @IsOptional()
   @Type(() => Number)
   @IsInt()
+  @Min(1)
+  @Max(100)
   limit: number = 10;
 
   @ApiPropertyOptional({
@@ -28,6 +31,7 @@ export class GetMyJobsDto {
     example: 'developer',
   })
   @IsOptional()
+  @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)
   @IsString()
   search?: string;
 }

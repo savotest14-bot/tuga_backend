@@ -4,6 +4,10 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  IsUUID,
+  Min,
+  Max,
+  Length,
 } from 'class-validator';
 
 import {
@@ -24,21 +28,22 @@ export class UpdateJobDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @IsUUID()
   categoryId?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @IsUUID()
   skillServiceId?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @IsUUID()
   subCategoryId?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
+  @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)
   @IsString()
   postcode?: string;
 
@@ -48,6 +53,8 @@ export class UpdateJobDto {
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
+  @Min(-90)
+  @Max(90)
   latitude?: number;
 
   @ApiPropertyOptional({
@@ -56,16 +63,22 @@ export class UpdateJobDto {
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
+  @Min(-180)
+  @Max(180)
   longitude?: number;
 
   @ApiPropertyOptional()
   @IsOptional()
+  @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)
   @IsString()
+  @Length(5, 150)
   title?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
+  @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)
   @IsString()
+  @Length(10, 2000)
   description?: string;
 
   @ApiPropertyOptional({
@@ -77,7 +90,7 @@ export class UpdateJobDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @Transform(({ value }) => value === 'true')
+  @Transform(({ value }) => value === 'true' || value === true)
   @IsBoolean()
   emergency?: boolean;
 
@@ -98,7 +111,7 @@ export class UpdateJobDto {
     example: false,
   })
   @IsOptional()
-  @Transform(({ value }) => value === 'true')
+  @Transform(({ value }) => value === 'true' || value === true)
   @IsBoolean()
   replaceFiles?: boolean;
 }

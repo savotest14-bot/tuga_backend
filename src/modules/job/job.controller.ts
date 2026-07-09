@@ -9,6 +9,7 @@ import {
     Req,
     UploadedFiles,
     UseInterceptors,
+    ParseUUIDPipe,
 } from '@nestjs/common';
 
 import {
@@ -259,7 +260,7 @@ export class JobController {
         @Req()
         req: Request,
 
-        @Param('jobId')
+        @Param('jobId', ParseUUIDPipe)
         jobId: string,
 
         @Body()
@@ -316,7 +317,7 @@ export class JobController {
         @Req()
         req: Request,
 
-        @Param('jobId')
+        @Param('jobId', ParseUUIDPipe)
         jobId: string,
     ) {
 
@@ -334,7 +335,7 @@ export class JobController {
         @Req()
         req: Request,
 
-        @Param('jobId')
+        @Param('jobId', ParseUUIDPipe)
         jobId: string,
     ) {
 
@@ -352,7 +353,7 @@ export class JobController {
         @Req()
         req: Request,
 
-        @Param('jobId')
+        @Param('jobId', ParseUUIDPipe)
         jobId: string,
     ) {
 
@@ -367,7 +368,7 @@ export class JobController {
     @ApiBearerAuth('access-token')
     async pauseJob(
         @Req() req: Request,
-        @Param('id') id: string,
+        @Param('id', ParseUUIDPipe) id: string,
     ) {
         return this.jobService.pauseDistribution(
             req['user'].id,
@@ -379,7 +380,7 @@ export class JobController {
     @ApiBearerAuth('access-token')
     async resumeJob(
         @Req() req: Request,
-        @Param('id') id: string,
+        @Param('id', ParseUUIDPipe) id: string,
     ) {
         return this.jobService.resumeDistribution(
             req['user'].id,
@@ -391,7 +392,7 @@ export class JobController {
     @ApiBearerAuth('access-token')
     async restartAuto(
         @Req() req: Request,
-        @Param('id') id: string,
+        @Param('id', ParseUUIDPipe) id: string,
     ) {
         return this.jobService.restartAutoDistribution(
             req['user'].id,
@@ -403,7 +404,7 @@ export class JobController {
     @ApiBearerAuth('access-token')
     async increaseRadius(
         @Req() req: Request,
-        @Param('id') id: string,
+        @Param('id', ParseUUIDPipe) id: string,
         @Body() dto: IncreaseRadiusDto,
     ) {
         return this.jobService.increaseRadius(
@@ -417,7 +418,7 @@ export class JobController {
     @ApiBearerAuth('access-token')
     async closeJob(
         @Req() req: Request,
-        @Param('id') id: string,
+        @Param('id', ParseUUIDPipe) id: string,
     ) {
         return this.jobService.closeDistribution(
             req['user'].id,

@@ -9,7 +9,7 @@ import {
     IsEnum,
     IsDateString,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { NoWorkReason } from '@prisma/client';
 
@@ -33,6 +33,7 @@ export class UpdateReviewDto {
         type: String,
     })
     @IsOptional()
+    @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)
     @IsString()
     @Length(0, 120)
     title?: string;
@@ -43,6 +44,7 @@ export class UpdateReviewDto {
         type: String,
     })
     @IsOptional()
+    @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)
     @IsString()
     @Length(0, 1000)
     review?: string;
@@ -52,7 +54,11 @@ export class UpdateReviewDto {
         type: Boolean,
     })
     @IsOptional()
-    @Type(() => Boolean)
+    @Transform(({ value }) => {
+        if (value === 'true' || value === true) return true;
+        if (value === 'false' || value === false) return false;
+        return value;
+    })
     @IsBoolean()
     wasWorkCompleted?: boolean;
 
@@ -70,7 +76,11 @@ export class UpdateReviewDto {
         type: Boolean,
     })
     @IsOptional()
-    @Type(() => Boolean)
+    @Transform(({ value }) => {
+        if (value === 'true' || value === true) return true;
+        if (value === 'false' || value === false) return false;
+        return value;
+    })
     @IsBoolean()
     wouldRecommendTrader?: boolean;
 
@@ -87,6 +97,7 @@ export class UpdateReviewDto {
         type: String,
     })
     @IsOptional()
+    @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)
     @IsString()
     @Length(1, 500)
     noWorkReasonText?: string;
@@ -98,7 +109,11 @@ export class UpdateReviewDto {
         type: Boolean,
     })
     @IsOptional()
-    @Type(() => Boolean)
+    @Transform(({ value }) => {
+        if (value === 'true' || value === true) return true;
+        if (value === 'false' || value === false) return false;
+        return value;
+    })
     @IsBoolean()
     replaceProofs?: boolean;
 }

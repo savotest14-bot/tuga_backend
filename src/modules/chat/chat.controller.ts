@@ -8,6 +8,7 @@ import {
   Req,
   UploadedFiles,
   UseInterceptors,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 
 import {
@@ -30,6 +31,7 @@ from 'src/common/helpers/multer.helper';
 
 import { ChatService }
 from './chat.service';
+import { SendMessageDto } from './dto/send-message.dto';
 
 @ApiTags('Chat')
 @ApiBearerAuth('access-token')
@@ -97,10 +99,7 @@ export class ChatController {
     req: Request,
 
     @Body()
-    body: {
-      conversationId: string;
-      message?: string;
-    },
+    body: SendMessageDto,
 
     @UploadedFiles()
     files?: Express.Multer.File[],
@@ -169,7 +168,7 @@ export class ChatController {
     @Req()
     req: Request,
 
-    @Param('conversationId')
+    @Param('conversationId', ParseUUIDPipe)
     conversationId: string,
   ) {
     const messages =

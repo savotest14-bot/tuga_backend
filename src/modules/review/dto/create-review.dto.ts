@@ -12,7 +12,7 @@ import {
   ValidateIf,
 } from 'class-validator';
 
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 
 import {
   ApiProperty,
@@ -50,7 +50,11 @@ export class CreateReviewDto {
   interactionSource?: ReviewInteractionSource;
 
   @ApiProperty()
-  @Type(() => Boolean)
+  @Transform(({ value }) => {
+    if (value === 'true' || value === true) return true;
+    if (value === 'false' || value === false) return false;
+    return value;
+  })
   @IsBoolean()
   wasWorkCompleted: boolean;
 
@@ -75,6 +79,7 @@ export class CreateReviewDto {
   @ValidateIf(
     (o) => o.wasWorkCompleted === true,
   )
+  @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)
   @IsString()
   @Length(1, 120)
   title?: string;
@@ -83,6 +88,7 @@ export class CreateReviewDto {
   @ValidateIf(
     (o) => o.wasWorkCompleted === true,
   )
+  @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)
   @IsString()
   @Length(1, 1000)
   review?: string;
@@ -102,7 +108,11 @@ export class CreateReviewDto {
   @ValidateIf(
     (o) => o.wasWorkCompleted === true,
   )
-  @Type(() => Boolean)
+  @Transform(({ value }) => {
+    if (value === 'true' || value === true) return true;
+    if (value === 'false' || value === false) return false;
+    return value;
+  })
   @IsBoolean()
   wouldRecommendTrader?: boolean;
 
@@ -127,6 +137,7 @@ export class CreateReviewDto {
       o.wasWorkCompleted === false &&
       o.noWorkReason === NoWorkReason.OTHER,
   )
+  @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)
   @IsString()
   @Length(1, 500)
   noWorkReasonText?: string;

@@ -6,6 +6,7 @@ import {
     Post,
     Query,
     Req,
+    ParseUUIDPipe,
 } from '@nestjs/common';
 
 import {
@@ -39,7 +40,7 @@ export class QuoteController {
     async createQuote(
         @Req() req: Request,
 
-        @Param('jobId')
+        @Param('jobId', ParseUUIDPipe)
         jobId: string,
 
         @Body()
@@ -64,7 +65,7 @@ export class QuoteController {
     async acceptQuote(
         @Req() req: Request,
 
-        @Param('quoteId')
+        @Param('quoteId', ParseUUIDPipe)
         quoteId: string,
     ) {
 
@@ -79,7 +80,7 @@ export class QuoteController {
     async getJobQuotes(
         @Req() req: Request,
 
-        @Param('jobId')
+        @Param('jobId', ParseUUIDPipe)
         jobId: string,
     ) {
 
@@ -106,7 +107,7 @@ export class QuoteController {
     async getMyQuoteByJob(
         @Req() req: Request,
 
-        @Param('jobId')
+        @Param('jobId', ParseUUIDPipe)
         jobId: string,
     ) {
 

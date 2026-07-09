@@ -3,7 +3,9 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  Min,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -12,6 +14,7 @@ export class UpdatePlanDto {
     example: 'Updated Bronze Plan',
   })
   @IsOptional()
+  @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)
   @IsString()
   description?: string;
 
@@ -26,6 +29,7 @@ export class UpdatePlanDto {
   })
   @IsOptional()
   @IsNumber()
+  @Min(0)
   maxTrades?: number;
 
   @ApiPropertyOptional({
@@ -40,6 +44,7 @@ export class UpdatePlanDto {
   })
   @IsOptional()
   @IsNumber()
+  @Min(0)
   maxPortfolioUploads?: number;
 
   @ApiPropertyOptional({
@@ -54,6 +59,7 @@ export class UpdatePlanDto {
   })
   @IsOptional()
   @IsNumber()
+  @Min(0)
   maxQuotesPerDay?: number;
 
   /*
@@ -66,6 +72,7 @@ export class UpdatePlanDto {
     example: 'Silver',
   })
   @IsOptional()
+  @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)
   @IsString()
   bannerLabel?: string;
 
@@ -80,6 +87,7 @@ export class UpdatePlanDto {
     example: 'MAXIMUM',
   })
   @IsOptional()
+  @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)
   @IsString()
   exposureLevel?: string;
 
@@ -101,6 +109,7 @@ export class UpdatePlanDto {
   })
   @IsOptional()
   @IsNumber()
+  @Min(0)
   customerSupportDays?: number;
 
   /*
@@ -121,6 +130,7 @@ export class UpdatePlanDto {
   })
   @IsOptional()
   @IsNumber()
+  @Min(0)
   trialDays?: number;
 
   /*
@@ -134,6 +144,7 @@ export class UpdatePlanDto {
   })
   @IsOptional()
   @IsNumber()
+  @Min(0)
   monthlyPrice?: number;
 
   @ApiPropertyOptional({
@@ -141,6 +152,7 @@ export class UpdatePlanDto {
   })
   @IsOptional()
   @IsNumber()
+  @Min(0)
   yearlyPrice?: number;
 
   /*

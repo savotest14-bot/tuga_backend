@@ -1,8 +1,8 @@
+import { Type, Transform } from 'class-transformer';
+import { IsOptional, IsInt, Min, Max, IsEnum, IsString } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Transform, Type } from 'class-transformer';
-import { IsInt, IsOptional, IsString, Min, Max } from 'class-validator';
 
-export class GetMyReviewsDto {
+export class GetCustomersQueryDto {
   @ApiPropertyOptional({ default: 1 })
   @IsOptional()
   @Type(() => Number)
@@ -17,6 +17,11 @@ export class GetMyReviewsDto {
   @Min(1)
   @Max(100)
   limit?: number = 10;
+
+  @ApiPropertyOptional({ enum: ['ACTIVE', 'INACTIVE', 'BLOCKED', 'PENDING'] })
+  @IsOptional()
+  @IsEnum(['ACTIVE', 'INACTIVE', 'BLOCKED', 'PENDING'])
+  status?: string;
 
   @ApiPropertyOptional()
   @IsOptional()

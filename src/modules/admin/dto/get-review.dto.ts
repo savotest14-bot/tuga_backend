@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsOptional, Min } from 'class-validator';
+import { IsEnum, IsInt, IsOptional, Min, Max } from 'class-validator';
 import { Type } from 'class-transformer';
 import {
   ReviewModerationType,
@@ -15,6 +15,7 @@ export class GetReviewsDto {
   })
   @Type(() => Number)
   @IsOptional()
+  @IsInt()
   @Min(1)
   page: number = 1;
 
@@ -25,7 +26,9 @@ export class GetReviewsDto {
   })
   @Type(() => Number)
   @IsOptional()
+  @IsInt()
   @Min(1)
+  @Max(100)
   limit: number = 10;
 
   @ApiPropertyOptional({

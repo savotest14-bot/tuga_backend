@@ -3,6 +3,7 @@ import {
   IsOptional,
   IsString,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 
 import {
   ApiProperty,
@@ -13,6 +14,7 @@ export class UpdateTraderAssetsDto {
   @ApiProperty({
     example: 'We are a professional construction company.',
   })
+  @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)
   @IsString()
   aboutUs: string;
 

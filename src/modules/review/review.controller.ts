@@ -10,6 +10,7 @@ import {
     Req,
     UploadedFiles,
     UseInterceptors,
+    ParseUUIDPipe,
 } from '@nestjs/common';
 
 import {
@@ -34,6 +35,7 @@ import { ReviewInteractionSource, ReviewType } from '@prisma/client';
 
 import { NoWorkReason } from '@prisma/client';
 import { GetMyReviewsDto } from './dto/get-my-review.dto';
+import { GetTraderReviewsQueryDto } from './dto/get-trader-reviews-query.dto';
 
 @ApiTags('Reviews')
 @Controller('reviews')
@@ -225,7 +227,7 @@ export class ReviewController {
     )
     async updateReview(
         @Req() req: Request,
-        @Param('reviewId') reviewId: string,
+        @Param('reviewId', ParseUUIDPipe) reviewId: string,
         @Body() dto: UpdateReviewDto,
         @UploadedFiles() files: { proofs?: Express.Multer.File[] },
     ) {
@@ -251,14 +253,13 @@ export class ReviewController {
     @ApiQuery({ name: 'page', required: false })
     @ApiQuery({ name: 'limit', required: false })
     async getTraderReviews(
-        @Param('traderId') traderId: string,
-        @Query('page') page?: string,
-        @Query('limit') limit?: string,
+        @Param('traderId', ParseUUIDPipe) traderId: string,
+        @Query() query: GetTraderReviewsQueryDto,
     ) {
         return this.reviewService.getTraderReviews(
             traderId,
-            Number(page || 1),
-            Number(limit || 10),
+            query.page ?? 1,
+            query.limit ?? 10,
         );
     }
 
@@ -271,7 +272,7 @@ export class ReviewController {
     @Get('trader/:traderId/summary')
     @ApiBearerAuth('access-token')
     async getTraderRatingSummary(
-        @Param('traderId') traderId: string,
+        @Param('traderId', ParseUUIDPipe) traderId: string,
     ) {
         return this.reviewService.getTraderRatingSummary(
             traderId,
@@ -302,13 +303,12 @@ export class ReviewController {
     @ApiQuery({ name: 'limit', required: false })
     async getTraderOwnReviews(
         @Req() req: Request,
-        @Query('page') page?: string,
-        @Query('limit') limit?: string,
+        @Query() query: GetTraderReviewsQueryDto,
     ) {
         return this.reviewService.getTraderReviews(
             req['user'].id,
-            Number(page || 1),
-            Number(limit || 10),
+            query.page ?? 1,
+            query.limit ?? 10,
         );
     }
     /*
@@ -321,7 +321,7 @@ export class ReviewController {
     @ApiBearerAuth('access-token')
     async deleteReview(
         @Req() req: Request,
-        @Param('reviewId') reviewId: string,
+        @Param('reviewId', ParseUUIDPipe) reviewId: string,
     ) {
         return this.reviewService.deleteReview(
             req['user'].id,
@@ -339,7 +339,7 @@ export class ReviewController {
     @ApiBearerAuth('access-token')
     async replyToReview(
         @Req() req: Request,
-        @Param('reviewId') reviewId: string,
+        @Param('reviewId', ParseUUIDPipe) reviewId: string,
         @Body() dto: ReplyReviewDto,
     ) {
         return this.reviewService.replyToReview(
@@ -364,7 +364,7 @@ export class ReviewController {
         @Req()
         req: Request,
 
-        @Param('reviewId')
+        @Param('reviewId', ParseUUIDPipe)
         reviewId: string,
 
     ) {

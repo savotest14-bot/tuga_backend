@@ -9,6 +9,7 @@ import {
     Patch,
     Get,
     Query,
+    ParseUUIDPipe,
 } from '@nestjs/common';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiConsumes, ApiBody, ApiTags, ApiQuery, ApiOperation } from '@nestjs/swagger';
@@ -17,6 +18,7 @@ import { CreateContactDto } from './dto/create-contact.dto';
 import { ContactSubject, ContactStatus } from '@prisma/client';
 import { multerOptions } from 'src/common/helpers/multer.helper';
 import { GetContactsQueryDto } from './dto/get-contacts.dto';
+import { UpdateContactStatusDto } from './dto/update-contact-status.dto';
 
 @ApiTags('Contact')
 @Controller('contact')
@@ -103,25 +105,20 @@ export class ContactController {
 
     @Get(':id')
     @ApiBearerAuth('access-token')
-    async getContactById(@Param('id') id: string) {
+    async getContactById(@Param('id', ParseUUIDPipe) id: string) {
         return this.contactService.getContactSubmissionById(id);
     }
 
     @Patch(':id/status')
     @ApiBearerAuth('access-token')
     @ApiBody({
-        schema: {
-            type: 'object',
-            properties: {
-                status: { enum: Object.values(ContactStatus) },
-            },
-        },
+        type: UpdateContactStatusDto,
     })
     async updateStatus(
-        @Param('id') id: string,
-        @Body('status') status: ContactStatus,
+        @Param('id', ParseUUIDPipe) id: string,
+        @Body() body: UpdateContactStatusDto,
         @Req() req: any,
     ) {
-        return this.contactService.updateContactStatus(id, status, req.user.id);
+        return this.contactService.updateContactStatus(id, body.status, req.user.id);
     }
 }

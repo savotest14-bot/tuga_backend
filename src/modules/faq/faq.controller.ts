@@ -7,6 +7,7 @@ import {
     Param,
     Body,
     Query,
+    ParseUUIDPipe,
 } from '@nestjs/common';
 
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
@@ -14,7 +15,8 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { FaqService } from './faq.service';
 import { CreateFaqDto } from './dto/create-faq.dto';
 import { UpdateFaqDto } from './dto/update-faq.dto';
-import { FaqAudience } from '@prisma/client';
+import { GetFaqQueryDto } from './dto/get-faq-query.dto';
+import { PublicFaqQueryDto } from './dto/public-faq-query.dto';
 
 @ApiTags('FAQ')
 
@@ -35,35 +37,29 @@ export class FaqController {
     @Get()
     @ApiBearerAuth('access-token')
     findAll(
-        @Query('page') page = 1,
-        @Query('limit') limit = 10,
-        @Query('audience')
-        audience?: string,
-        @Query('isActive')
-        isActive?: string,
+        @Query() query: GetFaqQueryDto,
     ) {
         return this.faqService.findAll(
-            Number(page),
-            Number(limit),
-            audience,
-            isActive,
+            query.page ?? 1,
+            query.limit ?? 10,
+            query.audience,
+            query.isActive !== undefined ? String(query.isActive) : undefined,
         );
     }
 
     @Get('public')
     publicFaqs(
-        @Query('audience')
-        audience?: FaqAudience,
+        @Query() query: PublicFaqQueryDto,
     ) {
         return this.faqService.publicFaqs(
-            audience,
+            query.audience,
         );
     }
 
     @Get(':id')
     @ApiBearerAuth('access-token')
     findOne(
-        @Param('id') id: string,
+        @Param('id', ParseUUIDPipe) id: string,
     ) {
         return this.faqService.findOne(id);
     }
@@ -71,7 +67,7 @@ export class FaqController {
     @Put(':id')
     @ApiBearerAuth('access-token')
     update(
-        @Param('id') id: string,
+        @Param('id', ParseUUIDPipe) id: string,
         @Body() body: UpdateFaqDto,
     ) {
         return this.faqService.update(
@@ -83,7 +79,7 @@ export class FaqController {
     @Delete(':id')
     @ApiBearerAuth('access-token')
     remove(
-        @Param('id') id: string,
+        @Param('id', ParseUUIDPipe) id: string,
     ) {
         return this.faqService.remove(id);
     }

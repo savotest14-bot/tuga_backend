@@ -3,6 +3,7 @@ import {
   Get,
   Patch,
   Param,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -57,7 +58,7 @@ export class ModerationController {
     description: 'Flag not found',
   })
   async approveFlag(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
   ) {
     return this.moderationService.approveFlag(
       id,
@@ -85,7 +86,7 @@ export class ModerationController {
     description: 'Flag not found',
   })
   async rejectFlag(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
   ) {
     return this.moderationService.rejectFlag(
       id,
