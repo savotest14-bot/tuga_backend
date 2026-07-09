@@ -548,12 +548,16 @@ export class AuthService {
         | FIND PLAN
         |--------------------------------------------------------------------------
         */
+        console.log("Data:", data)
+        console.log("data.planId", data.planId)
         const plan =
             await this.prisma.subscriptionPlan.findUnique({
                 where: {
                     id: data.planId,
                 },
             });
+
+            console.log("plan", plan)
 
         if (!plan) {
             throw new BadRequestException(
