@@ -140,4 +140,21 @@ export class CustomerController {
       query,
     );
   }
+
+  @Get('traders/:traderId')
+  @ApiBearerAuth('access-token')
+  getTraderProfile(
+    @Param('traderId', ParseUUIDPipe) traderId: string,
+    @Req() req: any,
+    @Query('latitude') latitude?: number,
+    @Query('longitude') longitude?: number,
+  ) {
+    return this.customerService.getTraderProfile(
+      traderId,
+      req.user.id,
+      latitude,
+      longitude,
+    );
+  }
+  
 }

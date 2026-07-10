@@ -2,8 +2,9 @@
 
 import {
     Injectable,
+    NotFoundException,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, Role, UserStatus } from '@prisma/client';
 
 import {
     PrismaService,
@@ -430,5 +431,147 @@ export class CustomerService {
         );
 
         return result;
+    }
+
+    async getTraderProfile(
+        traderId: string,
+        customerId: string,
+        latitude?: number,
+        longitude?: number,
+    ) {
+        const trader = await this.prisma.user.findFirst({
+            where: {
+                id: traderId,
+                role: Role.TRADER,
+                status: UserStatus.ACTIVE,
+                isEmailVerified: true,
+                isVerified: true,
+            },
+            include: {
+                traderProfile: {
+                    include: {
+                        portfolioItems: true,
+                        certificates: true,
+                        insuranceDocuments: true,
+                        subscription: true,
+                    },
+                },
+                traderMetrics: true,
+            },
+        });
+
+        if (!trader) {
+            throw new NotFoundException('Trader not found');
+        }
+
+        const saved = await this.prisma.savedTrader.findFirst({
+            where: {
+                customerId,
+                traderId,
+            },
+        });
+
+        let distance: number | null = null;
+
+        if (
+            latitude &&
+            longitude &&
+            trader.latitude &&
+            trader.longitude
+        ) {
+            distance = this.calculateDistance(
+                latitude,
+                longitude,
+                Number(trader.latitude),
+                Number(trader.longitude),
+            );
+        }
+
+        return {
+            id: trader.id,
+            fullName: trader.fullName,
+            email: trader.email,
+            phone: trader.phone,
+            profileImage: trader.profileImage,
+            latitude: trader.latitude,
+            longitude: trader.longitude,
+            distance,
+
+            isSaved: !!saved,
+
+            metrics: trader.traderMetrics,
+
+            profile: {
+                companyName: trader.traderProfile?.companyName,
+                companyType: trader.traderProfile?.companyType,
+                registrationNumber:
+                    trader.traderProfile?.registrationNumber,
+
+                tradeCategories:
+                    trader.traderProfile?.tradeCategories ?? [],
+
+                skillsServices:
+                    trader.traderProfile?.skillsServices ?? [],
+
+                subCategories:
+                    trader.traderProfile?.subCategories ?? [],
+
+                workRadius: trader.traderProfile?.workRadius,
+                location: trader.traderProfile?.location,
+                about: trader.traderProfile?.about,
+                aboutUs: trader.traderProfile?.aboutUs,
+
+                logo: trader.traderProfile?.logo,
+
+                insured: trader.traderProfile?.insured,
+
+                badges: trader.traderProfile?.badges ?? [],
+
+                verificationStatus:
+                    trader.traderProfile?.verificationStatus,
+
+                subscriptionTier:
+                    trader.traderProfile?.subscriptionTier,
+
+                subscriptionStatus:
+                    trader.traderProfile?.subscriptionStatus,
+
+                portfolio:
+                    trader.traderProfile?.portfolioItems ?? [],
+
+                certificates:
+                    trader.traderProfile?.certificates ?? [],
+
+                insuranceDocuments:
+                    trader.traderProfile?.insuranceDocuments ?? [],
+            },
+        };
+    }
+
+    private calculateDistance(
+        lat1: number,
+        lon1: number,
+        lat2: number,
+        lon2: number,
+    ): number {
+        const R = 6371;
+
+        const dLat = this.toRad(lat2 - lat1);
+        const dLon = this.toRad(lon2 - lon1);
+
+        const a =
+            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(this.toRad(lat1)) *
+            Math.cos(this.toRad(lat2)) *
+            Math.sin(dLon / 2) *
+            Math.sin(dLon / 2);
+
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+        return Number((R * c).toFixed(2));
+    }
+
+    private toRad(value: number) {
+        return (value * Math.PI) / 180;
     }
 }
