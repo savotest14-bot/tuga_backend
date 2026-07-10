@@ -63,6 +63,16 @@ export class CustomerController {
   })
 
   @ApiQuery({
+    name: 'skillService',
+    required: false,
+    example: 'skill-service-id',
+  })
+  @ApiQuery({
+    name: 'subCategory',
+    required: false,
+    example: 'sub-category-id',
+  })
+  @ApiQuery({
     name: 'verified',
     required: false,
     example: true,
@@ -98,6 +108,8 @@ export class CustomerController {
       query.limit ?? 10,
       query.search,
       query.categoryId,
+      query.skillService,
+      query.subCategory,
       query.verified !== undefined ? String(query.verified) : undefined,
       query.topRated !== undefined ? String(query.topRated) : undefined,
       query.latitude,

@@ -29,6 +29,20 @@ export class SearchTradersQueryDto {
   @IsUUID()
   categoryId?: string;
 
+  @ApiPropertyOptional({
+    description: 'Skill/Service ID',
+  })
+  @IsOptional()
+  @IsString()
+  skillService?: string;
+
+  @ApiPropertyOptional({
+    description: 'Sub Category ID',
+  })
+  @IsOptional()
+  @IsString()
+  subCategory?: string;
+
   @ApiPropertyOptional()
   @IsOptional()
   @Transform(({ value }) => {

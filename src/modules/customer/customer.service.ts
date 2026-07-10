@@ -28,6 +28,8 @@ export class CustomerService {
         limit: number,
         search?: string,
         categoryId?: string,
+        skillService?: string,
+        subCategory?: string,
         verified?: string,
         topRated?: string,
         latitude?: number,
@@ -85,6 +87,24 @@ export class CustomerService {
                 Prisma.sql`
                 ${categoryId} = ANY(tp."tradeCategories")
             `,
+            );
+        }
+
+        // SKILL SERVICE
+        if (skillService) {
+            conditions.push(
+                Prisma.sql`
+            ${skillService} = ANY(tp."skillsServices")
+        `,
+            );
+        }
+
+        // SUB CATEGORY
+        if (subCategory) {
+            conditions.push(
+                Prisma.sql`
+            ${subCategory} = ANY(tp."subCategories")
+        `,
             );
         }
 

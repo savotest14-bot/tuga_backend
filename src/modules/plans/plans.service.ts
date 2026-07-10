@@ -19,9 +19,7 @@ export class PlansService {
 
   // Get All Plans
   async getAllPlans() {
-
     const cacheKey = 'subscription:plans';
-
     const cached =
       await this.redisService.get(cacheKey);
 

@@ -838,13 +838,11 @@ export class AdminService {
                     id: reviewId,
                 },
             });
-
         if (!review) {
             throw new NotFoundException(
                 'Review not found',
             );
         }
-
         if (
             review.status ===
             ReviewStatus.APPROVED
@@ -853,7 +851,6 @@ export class AdminService {
                 'Review already approved',
             );
         }
-
         const approved =
             await this.prisma.review.update({
                 where: {
@@ -869,7 +866,7 @@ export class AdminService {
                     approvedBy: adminId,
                 },
             });
-
+            
         await this.recalculateTraderMetrics(
             review.traderId,
         );
