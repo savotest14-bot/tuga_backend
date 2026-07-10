@@ -444,7 +444,7 @@ export class CustomerService {
                 id: traderId,
                 role: Role.TRADER,
                 status: UserStatus.ACTIVE,
-                isEmailVerified: true,
+                // isEmailVerified: true,
                 isVerified: true,
             },
             include: {
@@ -487,6 +487,47 @@ export class CustomerService {
             );
         }
 
+        const profile = trader.traderProfile;
+
+        const [tradeCategories, skillsServices, subCategories] =
+            await Promise.all([
+                this.prisma.category.findMany({
+                    where: {
+                        id: {
+                            in: profile?.tradeCategories ?? [],
+                        },
+                    },
+                    select: {
+                        id: true,
+                        name: true,
+                    },
+                }),
+
+                this.prisma.skillService.findMany({
+                    where: {
+                        id: {
+                            in: profile?.skillsServices ?? [],
+                        },
+                    },
+                    select: {
+                        id: true,
+                        name: true,
+                    },
+                }),
+
+                this.prisma.subCategory.findMany({
+                    where: {
+                        id: {
+                            in: profile?.subCategories ?? [],
+                        },
+                    },
+                    select: {
+                        id: true,
+                        name: true,
+                    },
+                }),
+            ]);
+
         return {
             id: trader.id,
             fullName: trader.fullName,
@@ -502,48 +543,37 @@ export class CustomerService {
             metrics: trader.traderMetrics,
 
             profile: {
-                companyName: trader.traderProfile?.companyName,
-                companyType: trader.traderProfile?.companyType,
-                registrationNumber:
-                    trader.traderProfile?.registrationNumber,
+                companyName: profile?.companyName,
+                companyType: profile?.companyType,
+                registrationNumber: profile?.registrationNumber,
 
-                tradeCategories:
-                    trader.traderProfile?.tradeCategories ?? [],
+                // Returns ID + Name
+                tradeCategories,
+                skillsServices,
+                subCategories,
 
-                skillsServices:
-                    trader.traderProfile?.skillsServices ?? [],
+                workRadius: profile?.workRadius,
+                location: profile?.location,
+                about: profile?.about,
+                aboutUs: profile?.aboutUs,
 
-                subCategories:
-                    trader.traderProfile?.subCategories ?? [],
+                logo: profile?.logo,
 
-                workRadius: trader.traderProfile?.workRadius,
-                location: trader.traderProfile?.location,
-                about: trader.traderProfile?.about,
-                aboutUs: trader.traderProfile?.aboutUs,
+                insured: profile?.insured,
 
-                logo: trader.traderProfile?.logo,
+                badges: profile?.badges ?? [],
 
-                insured: trader.traderProfile?.insured,
+                verificationStatus: profile?.verificationStatus,
 
-                badges: trader.traderProfile?.badges ?? [],
+                subscriptionTier: profile?.subscriptionTier,
 
-                verificationStatus:
-                    trader.traderProfile?.verificationStatus,
+                subscriptionStatus: profile?.subscriptionStatus,
 
-                subscriptionTier:
-                    trader.traderProfile?.subscriptionTier,
+                portfolio: profile?.portfolioItems ?? [],
 
-                subscriptionStatus:
-                    trader.traderProfile?.subscriptionStatus,
+                certificates: profile?.certificates ?? [],
 
-                portfolio:
-                    trader.traderProfile?.portfolioItems ?? [],
-
-                certificates:
-                    trader.traderProfile?.certificates ?? [],
-
-                insuranceDocuments:
-                    trader.traderProfile?.insuranceDocuments ?? [],
+                insuranceDocuments: profile?.insuranceDocuments ?? [],
             },
         };
     }
