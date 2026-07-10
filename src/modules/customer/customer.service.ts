@@ -444,7 +444,7 @@ export class CustomerService {
                 id: traderId,
                 role: Role.TRADER,
                 status: UserStatus.ACTIVE,
-                // isEmailVerified: true,
+                isEmailVerified: true,
                 isVerified: true,
             },
             include: {
