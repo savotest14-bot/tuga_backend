@@ -287,7 +287,6 @@ export class CustomerService {
         customerId: string,
         traderId: string,
     ) {
-
         const existing =
             await this.prisma.savedTrader.findUnique({
                 where: {

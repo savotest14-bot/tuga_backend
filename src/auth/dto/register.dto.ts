@@ -44,7 +44,7 @@ export class CustomerRegisterDto {
   })
   @IsString()
   @Matches(
-    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#^()_\-+=])[A-Za-z\d@$!%*?&#^()_\-+=]{8,64}$/,
+    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,64}$/,
     {
       message:
         'Password must contain at least one uppercase letter, one lowercase letter, one number, one special character, and be between 8 and 64 characters long.',
@@ -57,7 +57,7 @@ export class CustomerRegisterDto {
   })
   @IsString()
   @Matches(
-    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#^()_\-+=])[A-Za-z\d@$!%*?&#^()_\-+=]{8,64}$/,
+    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,64}$/,
     {
       message:
         'Password must contain at least one uppercase letter, one lowercase letter, one number, one special character, and be between 8 and 64 characters long.',
