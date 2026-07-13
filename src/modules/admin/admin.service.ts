@@ -17,6 +17,7 @@ import {
     Prisma,
     ReviewStatus,
     Role,
+    UserStatus,
     VerificationStatus,
 } from '@prisma/client';
 
@@ -342,249 +343,210 @@ export class AdminService {
     }
 
     async verifyTrader(
-
         traderId: string,
-
         body: UpdateTraderVerificationDto,
     ) {
-
-        const {
-            verificationStatus,
-            rejectReason,
-        } = body;
+        const { verificationStatus, rejectReason } = body;
 
         // Find Trader
-
-        const trader =
-            await this.prisma.user.findUnique({
-
-                where: {
-                    id: traderId,
-                },
-
-                include: {
-                    traderProfile: true,
-                },
-            });
-
-        // Not Found
+        const trader = await this.prisma.user.findUnique({
+            where: {
+                id: traderId,
+            },
+            include: {
+                traderProfile: true,
+            },
+        });
 
         if (!trader) {
-
-            throw new BadRequestException(
-                'Trader not found',
-            );
+            throw new BadRequestException('Trader not found');
         }
 
-        // Only Trader
-
-        if (
-            trader.role !==
-            Role.TRADER
-        ) {
-
-            throw new BadRequestException(
-                'User is not a trader',
-            );
+        if (trader.role !== Role.TRADER) {
+            throw new BadRequestException('User is not a trader');
         }
 
-        // Reject Reason Required
+        // Reject reason required for Manual Check & Rejected
+        const requiredReasonStatuses: VerificationStatus[] = [
+            VerificationStatus.REJECTED,
+            VerificationStatus.MANUAL_CHECK,
+        ];
 
         if (
-
-            verificationStatus ===
-            VerificationStatus.REJECTED &&
-
+            requiredReasonStatuses.includes(verificationStatus) &&
             !rejectReason
         ) {
-
             throw new BadRequestException(
-                'Reject reason is required',
+                'Reason is required',
             );
         }
 
-        // Update Data
+        // Update Trader
+        const updatedTrader = await this.prisma.user.update({
+            where: {
+                id: traderId,
+            },
+            data: {
+                isVerified:
+                    verificationStatus === VerificationStatus.APPROVED,
 
-        const updatedTrader =
-            await this.prisma.user.update({
+                status: UserStatus.ACTIVE,
 
-                where: {
-                    id: traderId,
-                },
-
-                data: {
-
-                    // User Table
-
-                    isVerified:
-                        verificationStatus ===
-                        VerificationStatus.APPROVED,
-
-                    status:
-
-                        verificationStatus ===
-                            VerificationStatus.APPROVED
-
-                            ? 'ACTIVE'
-
-                            : 'ACTIVE',
-
-                    // Trader Profile
-
-                    traderProfile: {
-
-                        update: {
-
-                            verificationStatus,
-
-                            rejectReason:
-
-                                verificationStatus ===
-                                    VerificationStatus.REJECTED
-
-                                    ? rejectReason
-
-                                    : null,
-                        },
+                traderProfile: {
+                    update: {
+                        verificationStatus,
+                        rejectReason:
+                            verificationStatus === VerificationStatus.APPROVED
+                                ? null
+                                : rejectReason,
                     },
                 },
+            },
+            include: {
+                traderProfile: true,
+            },
+        });
 
-                include: {
-                    traderProfile: true,
-                },
-            });
+        // ===========================
+        // Send Email
+        // ===========================
 
-        // =========================
-        // SEND MAIL
-        // =========================
+        switch (verificationStatus) {
+            case VerificationStatus.APPROVED:
+                await this.mailService.sendMail({
+                    to: trader.email,
+                    subject: 'Trader Verification Approved',
+                    html: `
+          <div style="font-family:Arial,sans-serif;padding:20px;">
+            <h2>Congratulations 🎉</h2>
 
-        if (
-            verificationStatus ===
-            VerificationStatus.APPROVED
-        ) {
+            <p>Your trader account has been <b>approved</b>.</p>
 
-            await this.mailService.sendMail({
+            <p>
+              You can now login and continue your subscription process.
+            </p>
 
-                to: trader.email,
+            <br/>
 
-                subject:
-                    'Trader Verification Approved',
+            <p>
+              Thanks,<br/>
+              <strong>Tuga Traders Team</strong>
+            </p>
+          </div>
+        `,
+                });
+                break;
 
-                html: `
+            case VerificationStatus.MANUAL_CHECK:
+                await this.mailService.sendMail({
+                    to: trader.email,
+                    subject: 'Additional Information Required for Trader Verification',
+                    html: `
+          <div style="font-family:Arial,sans-serif;padding:20px;">
 
-                <div style="font-family: Arial, sans-serif; padding:20px;">
+            <h2>Additional Information Required</h2>
 
-                    <h2>
-                        Congratulations 🎉
-                    </h2>
+            <p>
+              Thank you for submitting your trader verification request.
+            </p>
 
-                    <p>
-                        Your trader account has been
-                        <b>approved</b>.
-                    </p>
+            <p>
+              Our verification team reviewed your application and requires some additional information before we can complete the verification process.
+            </p>
 
-                    <p>
-                        You can now login and continue
-                        your subscription process.
-                    </p>
+            <p><strong>Reason:</strong></p>
 
-                    <br/>
+            <div style="background:#f5f5f5;padding:12px;border-radius:6px;">
+              ${rejectReason}
+            </div>
 
-                    <p>
-                        Thanks,<br/>
-                        Team
-                    </p>
+            <p style="margin-top:20px;">
+              Please login to your account, update the requested information,
+              and resubmit your verification documents.
+            </p>
 
-                </div>
-            `,
-            });
+            <p>
+              If you have any questions, feel free to contact our support team.
+            </p>
+
+            <br/>
+
+            <p>
+              Thanks,<br/>
+              <strong>Tuga Traders Team</strong>
+            </p>
+
+          </div>
+        `,
+                });
+                break;
+
+            case VerificationStatus.REJECTED:
+                await this.mailService.sendMail({
+                    to: trader.email,
+                    subject: 'Trader Verification Rejected',
+                    html: `
+          <div style="font-family:Arial,sans-serif;padding:20px;">
+
+            <h2>Verification Rejected</h2>
+
+            <p>
+              Your trader verification request has been rejected.
+            </p>
+
+            <p><strong>Reason:</strong></p>
+
+            <div style="background:#f5f5f5;padding:12px;border-radius:6px;">
+              ${rejectReason}
+            </div>
+
+            <p style="margin-top:20px;">
+              Please update the required information and submit your verification again.
+            </p>
+
+            <br/>
+
+            <p>
+              Thanks,<br/>
+              <strong>Tuga Traders Team</strong>
+            </p>
+
+          </div>
+        `,
+                });
+                break;
         }
 
-        // Reject Mail
+        // ===========================
+        // Redis Cleanup
+        // ===========================
 
-        if (
-            verificationStatus ===
-            VerificationStatus.REJECTED
-        ) {
-
-            await this.mailService.sendMail({
-
-                to: trader.email,
-
-                subject:
-                    'Trader Verification Rejected',
-
-                html: `
-
-                <div style="font-family: Arial, sans-serif; padding:20px;">
-
-                    <h2>
-                        Verification Rejected
-                    </h2>
-
-                    <p>
-                        Your trader verification request
-                        has been rejected.
-                    </p>
-
-                    <p>
-                        <b>Reason:</b>
-                    </p>
-
-                    <p>
-                        ${rejectReason}
-                    </p>
-
-                    <br/>
-
-                    <p>
-                        Please update your details and
-                        try again.
-                    </p>
-
-                    <br/>
-
-                    <p>
-                        Thanks,<br/>
-                        Team
-                    </p>
-
-                </div>
-            `,
-            });
-        }
-
-        // redis cleanup
         await Promise.all([
-            await this.redisService.del(
-                `admin:user-details:${traderId}`,
-            ),
-            await this.redisService.del(
-                `profile:${traderId}`,
-            ),
-            await this.redisService.del(
-                `registration-status:${traderId}`,
-            ),
-
-            await this.redisService.deleteByPattern(
-                'traders:*',
-            ),
+            this.redisService.del(`admin:user-details:${traderId}`),
+            this.redisService.del(`profile:${traderId}`),
+            this.redisService.del(`registration-status:${traderId}`),
+            this.redisService.deleteByPattern('traders:*'),
         ]);
 
+        let message = '';
+
+        switch (verificationStatus) {
+            case VerificationStatus.APPROVED:
+                message = 'Trader approved successfully';
+                break;
+
+            case VerificationStatus.MANUAL_CHECK:
+                message = 'Trader marked for manual verification successfully';
+                break;
+
+            case VerificationStatus.REJECTED:
+                message = 'Trader rejected successfully';
+                break;
+        }
 
         return {
-
             success: true,
-
-            message:
-
-                verificationStatus ===
-                    VerificationStatus.APPROVED
-
-                    ? 'Trader approved successfully'
-
-                    : 'Trader rejected successfully',
-
+            message,
             data: updatedTrader,
         };
     }
@@ -866,7 +828,7 @@ export class AdminService {
                     approvedBy: adminId,
                 },
             });
-            
+
         await this.recalculateTraderMetrics(
             review.traderId,
         );

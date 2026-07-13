@@ -16,7 +16,7 @@ import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
 import * as fs from 'fs';
 import * as path from 'path';
-import { Role } from '@prisma/client';
+import { Role, VerificationStatus } from '@prisma/client';
 import { MailService } from '../common/mail/mail.service';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { TraderRegisterStep1Dto } from './dto/trader-register-step1.dto';
@@ -557,7 +557,7 @@ export class AuthService {
                 },
             });
 
-            console.log("plan", plan)
+        console.log("plan", plan)
 
         if (!plan) {
             throw new BadRequestException(
@@ -1237,13 +1237,85 @@ export class AuthService {
         return result;
     }
 
+    // async login(data: LoginDto) {
+    //     const user =
+    //         await this.prisma.user.findUnique({
+    //             where: {
+    //                 email: data.email,
+    //             },
+    //         });
+
+    //     if (!user) {
+    //         throw new UnauthorizedException(
+    //             'Invalid credentials',
+    //         );
+    //     }
+
+    //     if (user.status === 'BLOCKED') {
+    //         throw new UnauthorizedException(
+    //             'Account blocked',
+    //         );
+    //     }
+
+    //     const isPasswordValid =
+    //         await bcrypt.compare(
+    //             data.password,
+    //             user.password,
+    //         );
+
+    //     if (!isPasswordValid) {
+    //         throw new UnauthorizedException(
+    //             'Invalid credentials',
+    //         );
+    //     }
+
+    //     const accessToken =
+    //         await this.jwtService.signAsync({
+    //             id: user.id,
+    //             email: user.email,
+    //             role: user.role,
+    //         });
+
+    //     await this.prisma.user.update({
+    //         where: {
+    //             id: user.id,
+    //         },
+
+    //         data: {
+    //             token: accessToken,
+    //         },
+    //     });
+
+    //     return {
+    //         message: 'Login successful',
+
+    //         accessToken,
+
+    //         user: {
+    //             id: user.id,
+    //             fullName: user.fullName,
+    //             email: user.email,
+    //             role: user.role,
+    //             isEmailVerified: user.isEmailVerified,
+    //         },
+    //     };
+    // }
+
+
     async login(data: LoginDto) {
-        const user =
-            await this.prisma.user.findUnique({
-                where: {
-                    email: data.email,
+        const user = await this.prisma.user.findUnique({
+            where: {
+                email: data.email,
+            },
+            include: {
+                traderProfile: {
+                    select: {
+                        verificationStatus: true,
+                        rejectReason: true,
+                    },
                 },
-            });
+            },
+        });
 
         if (!user) {
             throw new UnauthorizedException(
@@ -1257,11 +1329,23 @@ export class AuthService {
             );
         }
 
-        const isPasswordValid =
-            await bcrypt.compare(
-                data.password,
-                user.password,
-            );
+        // Trader rejected check
+        if (
+            user.role === Role.TRADER &&
+            user.traderProfile?.verificationStatus ===
+            VerificationStatus.REJECTED
+        ) {
+            throw new UnauthorizedException({
+                message: 'Your application has been rejected.',
+                rejectReason:
+                    user.traderProfile.rejectReason,
+            });
+        }
+
+        const isPasswordValid = await bcrypt.compare(
+            data.password,
+            user.password,
+        );
 
         if (!isPasswordValid) {
             throw new UnauthorizedException(
@@ -1269,18 +1353,16 @@ export class AuthService {
             );
         }
 
-        const accessToken =
-            await this.jwtService.signAsync({
-                id: user.id,
-                email: user.email,
-                role: user.role,
-            });
+        const accessToken = await this.jwtService.signAsync({
+            id: user.id,
+            email: user.email,
+            role: user.role,
+        });
 
         await this.prisma.user.update({
             where: {
                 id: user.id,
             },
-
             data: {
                 token: accessToken,
             },
@@ -1288,9 +1370,7 @@ export class AuthService {
 
         return {
             message: 'Login successful',
-
             accessToken,
-
             user: {
                 id: user.id,
                 fullName: user.fullName,
@@ -1300,7 +1380,7 @@ export class AuthService {
             },
         };
     }
-
+    
     async logout(
         userId: string,
     ) {
@@ -1601,146 +1681,284 @@ export class AuthService {
     }
 
 
-    async getMyProfile(
-        userId: string,
-    ) {
+    // async getMyProfile(
+    //     userId: string,
+    // ) {
 
-        const cacheKey =
-            `profile:${userId}`;
+    //     const cacheKey =
+    //         `profile:${userId}`;
 
-        const cached =
-            await this.redisService.get(
-                cacheKey,
-            );
+    //     const cached =
+    //         await this.redisService.get(
+    //             cacheKey,
+    //         );
+
+    //     if (cached) {
+    //         return cached;
+    //     }
+
+
+    //     /*
+    //     |--------------------------------------------------------------------------
+    //     | GET USER
+    //     |--------------------------------------------------------------------------
+    //     */
+
+    //     const user =
+    //         await this.prisma.user.findUnique({
+
+    //             where: {
+    //                 id: userId,
+    //             },
+
+    //             select: {
+
+    //                 id: true,
+
+    //                 fullName: true,
+
+    //                 email: true,
+
+    //                 phone: true,
+
+    //                 profileImage: true,
+
+    //                 latitude: true,
+
+    //                 longitude: true,
+
+    //                 role: true,
+
+    //                 status: true,
+
+    //                 isVerified: true,
+
+    //                 acceptedTerms: true,
+
+    //                 createdAt: true,
+
+    //                 updatedAt: true,
+
+    //                 traderProfile: {
+
+    //                     include: {
+
+    //                         subscription: {
+
+    //                             include: {
+
+    //                                 plan: true,
+
+    //                                 price: true,
+    //                             },
+    //                         },
+
+    //                         portfolioItems: {
+
+    //                             orderBy: {
+    //                                 createdAt: 'desc',
+    //                             },
+    //                         },
+
+    //                         certificates: {
+
+    //                             orderBy: {
+    //                                 createdAt: 'desc',
+    //                             },
+    //                         },
+
+    //                         insuranceDocuments: {
+
+    //                             orderBy: {
+    //                                 createdAt: 'desc',
+    //                             },
+    //                         },
+    //                     },
+    //                 },
+    //             },
+    //         });
+
+    //     /*
+    //     |--------------------------------------------------------------------------
+    //     | USER NOT FOUND
+    //     |--------------------------------------------------------------------------
+    //     */
+
+    //     if (!user) {
+
+    //         throw new BadRequestException(
+    //             'User not found',
+    //         );
+    //     }
+
+    //     /*
+    //     |--------------------------------------------------------------------------
+    //     | CUSTOMER RESPONSE
+    //     |--------------------------------------------------------------------------
+    //     */
+
+    //     if (user.role !== 'TRADER') {
+
+    //         return {
+
+    //             ...user,
+
+    //             traderProfile: null,
+    //         };
+    //     }
+
+    //     /*
+    //     |--------------------------------------------------------------------------
+    //     | TRADER RESPONSE
+    //     |--------------------------------------------------------------------------
+    //     */
+    //     await this.redisService.set(
+    //         cacheKey,
+    //         user,
+    //         300, // 5 min
+    //     );
+    //     return user;
+    // }
+
+    async getMyProfile(userId: string) {
+        const cacheKey = `profile:${userId}`;
+
+        const cached = await this.redisService.get(cacheKey);
 
         if (cached) {
             return cached;
         }
 
+        const user = await this.prisma.user.findUnique({
+            where: {
+                id: userId,
+            },
+            select: {
+                id: true,
+                fullName: true,
+                email: true,
+                phone: true,
+                profileImage: true,
+                latitude: true,
+                longitude: true,
+                role: true,
+                status: true,
+                isVerified: true,
+                acceptedTerms: true,
+                createdAt: true,
+                updatedAt: true,
 
-        /*
-        |--------------------------------------------------------------------------
-        | GET USER
-        |--------------------------------------------------------------------------
-        */
-
-        const user =
-            await this.prisma.user.findUnique({
-
-                where: {
-                    id: userId,
-                },
-
-                select: {
-
-                    id: true,
-
-                    fullName: true,
-
-                    email: true,
-
-                    phone: true,
-
-                    profileImage: true,
-
-                    latitude: true,
-
-                    longitude: true,
-
-                    role: true,
-
-                    status: true,
-
-                    isVerified: true,
-
-                    acceptedTerms: true,
-
-                    createdAt: true,
-
-                    updatedAt: true,
-
-                    traderProfile: {
-
-                        include: {
-
-                            subscription: {
-
-                                include: {
-
-                                    plan: true,
-
-                                    price: true,
-                                },
+                traderProfile: {
+                    include: {
+                        subscription: {
+                            include: {
+                                plan: true,
+                                price: true,
                             },
+                        },
 
-                            portfolioItems: {
-
-                                orderBy: {
-                                    createdAt: 'desc',
-                                },
+                        portfolioItems: {
+                            orderBy: {
+                                createdAt: 'desc',
                             },
+                        },
 
-                            certificates: {
-
-                                orderBy: {
-                                    createdAt: 'desc',
-                                },
+                        certificates: {
+                            orderBy: {
+                                createdAt: 'desc',
                             },
+                        },
 
-                            insuranceDocuments: {
-
-                                orderBy: {
-                                    createdAt: 'desc',
-                                },
+                        insuranceDocuments: {
+                            orderBy: {
+                                createdAt: 'desc',
                             },
                         },
                     },
                 },
-            });
-
-        /*
-        |--------------------------------------------------------------------------
-        | USER NOT FOUND
-        |--------------------------------------------------------------------------
-        */
+            },
+        });
 
         if (!user) {
-
-            throw new BadRequestException(
-                'User not found',
-            );
+            throw new BadRequestException('User not found');
         }
 
-        /*
-        |--------------------------------------------------------------------------
-        | CUSTOMER RESPONSE
-        |--------------------------------------------------------------------------
-        */
-
-        if (user.role !== 'TRADER') {
-
+        if (user.role !== Role.TRADER) {
             return {
-
                 ...user,
-
                 traderProfile: null,
             };
         }
 
-        /*
-        |--------------------------------------------------------------------------
-        | TRADER RESPONSE
-        |--------------------------------------------------------------------------
-        */
-        await this.redisService.set(
-            cacheKey,
-            user,
-            300, // 5 min
-        );
-        return user;
+        let response: any = user;
+
+        if (user.traderProfile) {
+            const [categories, skillServices, subCategories] =
+                await Promise.all([
+                    this.prisma.category.findMany({
+                        where: {
+                            id: {
+                                in: user.traderProfile.tradeCategories ?? [],
+                            },
+                        },
+                        select: {
+                            id: true,
+                            name: true,
+                            image: true,
+                        },
+                    }),
+
+                    this.prisma.skillService.findMany({
+                        where: {
+                            id: {
+                                in: user.traderProfile.skillsServices ?? [],
+                            },
+                        },
+                        select: {
+                            id: true,
+                            name: true,
+                            image: true,
+                            categoryId: true,
+                        },
+                    }),
+
+                    this.prisma.subCategory.findMany({
+                        where: {
+                            id: {
+                                in: user.traderProfile.subCategories ?? [],
+                            },
+                        },
+                        select: {
+                            id: true,
+                            name: true,
+                            image: true,
+                            skillServiceId: true,
+                        },
+                    }),
+                ]);
+
+            response = {
+                ...user,
+                traderProfile: {
+                    ...user.traderProfile,
+
+                    // Original ID arrays
+                    tradeCategories: user.traderProfile.tradeCategories,
+                    skillsServices: user.traderProfile.skillsServices,
+                    subCategories: user.traderProfile.subCategories,
+
+                    // Detailed objects
+                    categoryDetails: categories,
+                    skillServiceDetails: skillServices,
+                    subCategoryDetails: subCategories,
+                },
+            };
+        }
+
+        await this.redisService.set(cacheKey, response, 300);
+
+        return response;
     }
-
-
 
     async updateProfile(
         userId: string,
