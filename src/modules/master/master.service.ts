@@ -228,7 +228,7 @@ export class MasterService {
                 },
 
                 orderBy: {
-                    createdAt: 'desc',
+                    createdAt: 'asc',
                 },
             });
 
@@ -299,7 +299,7 @@ export class MasterService {
                 },
 
                 orderBy: {
-                    createdAt: 'desc',
+                    createdAt: 'asc',
                 },
             });
 
@@ -371,7 +371,7 @@ export class MasterService {
                 },
 
                 orderBy: {
-                    createdAt: 'desc',
+                    createdAt: 'asc',
                 },
             });
 
