@@ -603,4 +603,138 @@ export class CustomerService {
     private toRad(value: number) {
         return (value * Math.PI) / 180;
     }
+
+    async getPublicTraderProfile(
+        traderId: string,
+        latitude?: number,
+        longitude?: number,
+    ) {
+        const trader = await this.prisma.user.findFirst({
+            where: {
+                id: traderId,
+                role: Role.TRADER,
+                status: UserStatus.ACTIVE,
+                isEmailVerified: true,
+                isVerified: true,
+            },
+            include: {
+                traderProfile: {
+                    include: {
+                        portfolioItems: true,
+                        certificates: true,
+                        insuranceDocuments: true,
+                        subscription: true,
+                    },
+                },
+                traderMetrics: true,
+            },
+        });
+
+        if (!trader) {
+            throw new NotFoundException('Trader not found');
+        }
+
+        let distance: number | null = null;
+
+        if (
+            latitude &&
+            longitude &&
+            trader.latitude &&
+            trader.longitude
+        ) {
+            distance = this.calculateDistance(
+                latitude,
+                longitude,
+                Number(trader.latitude),
+                Number(trader.longitude),
+            );
+        }
+
+        const profile = trader.traderProfile;
+
+        const [tradeCategories, skillsServices, subCategories] =
+            await Promise.all([
+                this.prisma.category.findMany({
+                    where: {
+                        id: {
+                            in: profile?.tradeCategories ?? [],
+                        },
+                    },
+                    select: {
+                        id: true,
+                        name: true,
+                    },
+                }),
+
+                this.prisma.skillService.findMany({
+                    where: {
+                        id: {
+                            in: profile?.skillsServices ?? [],
+                        },
+                    },
+                    select: {
+                        id: true,
+                        name: true,
+                    },
+                }),
+
+                this.prisma.subCategory.findMany({
+                    where: {
+                        id: {
+                            in: profile?.subCategories ?? [],
+                        },
+                    },
+                    select: {
+                        id: true,
+                        name: true,
+                    },
+                }),
+            ]);
+
+        return {
+            id: trader.id,
+            fullName: trader.fullName,
+            email: trader.email,
+            phone: trader.phone,
+            profileImage: trader.profileImage,
+            latitude: trader.latitude,
+            longitude: trader.longitude,
+            distance,
+
+            metrics: trader.traderMetrics,
+
+            profile: {
+                companyName: profile?.companyName,
+                companyType: profile?.companyType,
+                registrationNumber: profile?.registrationNumber,
+
+                tradeCategories,
+                skillsServices,
+                subCategories,
+
+                workRadius: profile?.workRadius,
+                location: profile?.location,
+                about: profile?.about,
+                aboutUs: profile?.aboutUs,
+
+                logo: profile?.logo,
+
+                insured: profile?.insured,
+
+                badges: profile?.badges ?? [],
+
+                verificationStatus: profile?.verificationStatus,
+
+                subscriptionTier: profile?.subscriptionTier,
+
+                subscriptionStatus: profile?.subscriptionStatus,
+
+                portfolio: profile?.portfolioItems ?? [],
+
+                certificates: profile?.certificates ?? [],
+
+                insuranceDocuments: profile?.insuranceDocuments ?? [],
+            },
+        };
+    }
 }

@@ -60,6 +60,10 @@ export class CustomerModule
                 path: 'customer/search-traders',
                 method: RequestMethod.GET,
               },
+               {
+                path: 'customer/public/traders/:traderId',
+                method: RequestMethod.GET,
+              },
             )
 
       .forRoutes(

@@ -156,5 +156,18 @@ export class CustomerController {
       longitude,
     );
   }
-  
+
+  @Get('public/traders/:traderId')
+  getPublicTraderProfile(
+    @Param('traderId', ParseUUIDPipe) traderId: string,
+    @Query('latitude') latitude?: number,
+    @Query('longitude') longitude?: number,
+  ) {
+    return this.customerService.getPublicTraderProfile(
+      traderId,
+      latitude,
+      longitude,
+    );
+  }
+
 }

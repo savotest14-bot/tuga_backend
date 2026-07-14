@@ -394,7 +394,6 @@ export class MasterService {
         };
     }
 
-
     async toggleCategory(
         id: string,
     ) {
