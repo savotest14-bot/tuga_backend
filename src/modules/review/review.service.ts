@@ -1424,6 +1424,7 @@ export class ReviewService {
         page: number = 1,
         limit: number = 10,
     ) {
+        await this.redisService.deleteByPattern(`public:reviews:*`);
         const cacheKey = `public:reviews:${page}:${limit}`;
 
         const cached = await this.redisService.get(cacheKey);
@@ -1458,6 +1459,9 @@ export class ReviewService {
                             traderProfile: {
                                 select: {
                                     companyName: true,
+                                    tradeCategories: true,
+                                    skillsServices: true,
+                                    subCategories: true,
                                 },
                             },
                         },
@@ -1479,9 +1483,147 @@ export class ReviewService {
             }),
         ]);
 
+        // ===========================
+        // Collect all unique IDs
+        // ===========================
+
+        const tradeCategoryIds = [
+            ...new Set(
+                reviews.flatMap(
+                    (review) =>
+                        review.trader?.traderProfile?.tradeCategories ?? [],
+                ),
+            ),
+        ];
+
+        const skillServiceIds = [
+            ...new Set(
+                reviews.flatMap(
+                    (review) =>
+                        review.trader?.traderProfile?.skillsServices ?? [],
+                ),
+            ),
+        ];
+
+        const subCategoryIds = [
+            ...new Set(
+                reviews.flatMap(
+                    (review) =>
+                        review.trader?.traderProfile?.subCategories ?? [],
+                ),
+            ),
+        ];
+
+        // ===========================
+        // Fetch names
+        // ===========================
+
+        const [
+            tradeCategories,
+            skillServices,
+            subCategories,
+        ] = await Promise.all([
+            this.prisma.category.findMany({
+                where: {
+                    id: {
+                        in: tradeCategoryIds,
+                    },
+                },
+                select: {
+                    id: true,
+                    name: true,
+                },
+            }),
+
+            this.prisma.skillService.findMany({
+                where: {
+                    id: {
+                        in: skillServiceIds,
+                    },
+                },
+                select: {
+                    id: true,
+                    name: true,
+                },
+            }),
+
+            this.prisma.subCategory.findMany({
+                where: {
+                    id: {
+                        in: subCategoryIds,
+                    },
+                },
+                select: {
+                    id: true,
+                    name: true,
+                },
+            }),
+        ]);
+
+        // ===========================
+        // Create lookup maps
+        // ===========================
+
+        const tradeCategoryMap = new Map(
+            tradeCategories.map((item) => [item.id, item]),
+        );
+
+        const skillServiceMap = new Map(
+            skillServices.map((item) => [item.id, item]),
+        );
+
+        const subCategoryMap = new Map(
+            subCategories.map((item) => [item.id, item]),
+        );
+
+        // ===========================
+        // Replace IDs with objects
+        // ===========================
+
+        const formattedReviews = reviews.map((review) => ({
+            ...review,
+            trader: review.trader
+                ? {
+                    ...review.trader,
+                    traderProfile: review.trader.traderProfile
+                        ? {
+                            ...review.trader.traderProfile,
+
+                            tradeCategories:
+                                review.trader.traderProfile.tradeCategories.map(
+                                    (id) =>
+                                        tradeCategoryMap.get(id) ?? {
+                                            id,
+                                            name: null,
+                                        },
+                                ),
+
+                            skillsServices:
+                                review.trader.traderProfile.skillsServices.map(
+                                    (id) =>
+                                        skillServiceMap.get(id) ?? {
+                                            id,
+                                            name: null,
+                                        },
+                                ),
+
+                            subCategories:
+                                review.trader.traderProfile.subCategories.map(
+                                    (id) =>
+                                        subCategoryMap.get(id) ?? {
+                                            id,
+                                            name: null,
+                                        },
+                                ),
+                        }
+                        : null,
+                }
+                : null,
+        }));
+
         const result = {
             message: 'Approved reviews fetched successfully',
-            data: reviews,
+            data: formattedReviews,
             pagination: {
                 total,
                 page,
