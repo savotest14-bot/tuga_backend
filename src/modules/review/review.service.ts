@@ -1424,7 +1424,6 @@ export class ReviewService {
         page: number = 1,
         limit: number = 10,
     ) {
-        await this.redisService.deleteByPattern(`public:reviews:*`);
         const cacheKey = `public:reviews:${page}:${limit}`;
 
         const cached = await this.redisService.get(cacheKey);
