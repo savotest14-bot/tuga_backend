@@ -938,17 +938,6 @@ export class AuthService {
     async registrationStatus(
         userId: string,
     ) {
-        const cacheKey =
-            `registration-status:${userId}`;
-
-        const cached =
-            await this.redisService.get(
-                cacheKey,
-            );
-
-        if (cached) {
-            return cached;
-        }
         // Trader
 
         const trader =
@@ -1227,12 +1216,6 @@ export class AuthService {
                     trader.subscriptionTier,
             },
         };
-
-        await this.redisService.set(
-            cacheKey,
-            result,
-            300, // 5 minutes
-        );
 
         return result;
     }
