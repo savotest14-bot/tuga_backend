@@ -41,87 +41,6 @@ export class AuthService {
         private readonly moderationService: ModerationService,
     ) { }
 
-    // async customerRegister(
-    //     data: CustomerRegisterDto,
-    // ) {
-
-    //     // Password Match Check
-    //     if (
-    //         data.password !==
-    //         data.confirmPassword
-    //     ) {
-    //         throw new BadRequestException(
-    //             'Passwords do not match',
-    //         );
-    //     }
-
-    //     const existingUser =
-    //         await this.prisma.user.findUnique({
-    //             where: {
-    //                 email: data.email,
-    //             },
-    //         });
-
-    //     if (existingUser) {
-    //         throw new BadRequestException(
-    //             'Email already exists',
-    //         );
-    //     }
-
-    //     const hashedPassword =
-    //         await bcrypt.hash(data.password, 10);
-
-    //     const user =
-    //         await this.prisma.user.create({
-    //             data: {
-    //                 fullName: data.fullName,
-
-    //                 email: data.email,
-
-    //                 password: hashedPassword,
-
-    //                 role: Role.CUSTOMER,
-
-    //                 status: 'ACTIVE',
-
-    //                 acceptedTerms:
-    //                     data.isCheckedTermsCondition,
-
-    //                 latitude: data.latitude,
-
-    //                 longitude: data.longitude,
-    //             },
-    //         });
-
-    //     const accessToken =
-    //         await this.jwtService.signAsync({
-    //             id: user.id,
-    //             email: user.email,
-    //             role: user.role,
-    //         });
-
-    //     await this.prisma.user.update({
-    //         where: {
-    //             id: user.id,
-    //         },
-    //         data: {
-    //             token: accessToken,
-    //         },
-    //     });
-    //     return {
-    //         message:
-    //             'Customer registered successfully',
-
-    //         accessToken,
-
-    //         user: {
-    //             id: user.id,
-    //             fullName: user.fullName,
-    //             email: user.email,
-    //             role: user.role,
-    //         },
-    //     };
-    // }
 
     async customerRegister(
         data: CustomerRegisterDto,
@@ -1237,70 +1156,6 @@ export class AuthService {
         return result;
     }
 
-    // async login(data: LoginDto) {
-    //     const user =
-    //         await this.prisma.user.findUnique({
-    //             where: {
-    //                 email: data.email,
-    //             },
-    //         });
-
-    //     if (!user) {
-    //         throw new UnauthorizedException(
-    //             'Invalid credentials',
-    //         );
-    //     }
-
-    //     if (user.status === 'BLOCKED') {
-    //         throw new UnauthorizedException(
-    //             'Account blocked',
-    //         );
-    //     }
-
-    //     const isPasswordValid =
-    //         await bcrypt.compare(
-    //             data.password,
-    //             user.password,
-    //         );
-
-    //     if (!isPasswordValid) {
-    //         throw new UnauthorizedException(
-    //             'Invalid credentials',
-    //         );
-    //     }
-
-    //     const accessToken =
-    //         await this.jwtService.signAsync({
-    //             id: user.id,
-    //             email: user.email,
-    //             role: user.role,
-    //         });
-
-    //     await this.prisma.user.update({
-    //         where: {
-    //             id: user.id,
-    //         },
-
-    //         data: {
-    //             token: accessToken,
-    //         },
-    //     });
-
-    //     return {
-    //         message: 'Login successful',
-
-    //         accessToken,
-
-    //         user: {
-    //             id: user.id,
-    //             fullName: user.fullName,
-    //             email: user.email,
-    //             role: user.role,
-    //             isEmailVerified: user.isEmailVerified,
-    //         },
-    //     };
-    // }
-
 
     async login(data: LoginDto) {
         const user = await this.prisma.user.findUnique({
@@ -1359,17 +1214,44 @@ export class AuthService {
             role: user.role,
         });
 
-        await this.prisma.user.update({
-            where: {
-                id: user.id,
-            },
-            data: {
-                token: accessToken,
-            },
-        });
+        // Send OTP only if email is not verified
+        if (!user.isEmailVerified) {
+            const otp = Math.floor(
+                100000 + Math.random() * 900000,
+            ).toString();
+
+            await this.prisma.user.update({
+                where: {
+                    id: user.id,
+                },
+                data: {
+                    token: accessToken,
+                    verificationOtp: otp,
+                    verificationOtpExpiresAt: new Date(
+                        Date.now() + 10 * 60 * 1000,
+                    ),
+                },
+            });
+
+            await this.mailService.sendVerificationOtp(
+                user.email,
+                otp,
+            );
+        } else {
+            await this.prisma.user.update({
+                where: {
+                    id: user.id,
+                },
+                data: {
+                    token: accessToken,
+                },
+            });
+        }
 
         return {
-            message: 'Login successful',
+            message: user.isEmailVerified
+                ? 'Login successful'
+                : 'OTP sent successfully. Please verify your email.',
             accessToken,
             user: {
                 id: user.id,
@@ -1377,10 +1259,11 @@ export class AuthService {
                 email: user.email,
                 role: user.role,
                 isEmailVerified: user.isEmailVerified,
+                otp:user.verificationOtp,
             },
         };
     }
-    
+
     async logout(
         userId: string,
     ) {
