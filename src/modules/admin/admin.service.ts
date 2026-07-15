@@ -858,6 +858,7 @@ export class AdminService {
                 `review:detail:${reviewId}:*`,
             ),
             this.redisService.deleteByPattern('admin:reviews:*'),
+            this.redisService.deleteByPattern(`public:reviews:*`),
         ]);
 
         try {

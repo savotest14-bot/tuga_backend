@@ -2,6 +2,7 @@ import {
   MiddlewareConsumer,
   Module,
   NestModule,
+  RequestMethod,
 } from '@nestjs/common';
 
 import { ReviewController } from './review.controller';
@@ -39,6 +40,11 @@ export class ReviewModule implements NestModule {
   configure(
     consumer: MiddlewareConsumer,
   ) {
-    consumer.apply(AuthMiddleware).forRoutes(ReviewController);
+    consumer.apply(AuthMiddleware).exclude(
+      {
+        path: 'reviews/all/public',
+        method: RequestMethod.GET,
+      },
+    ).forRoutes(ReviewController);
   }
 }

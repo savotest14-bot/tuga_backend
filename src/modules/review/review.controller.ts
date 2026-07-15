@@ -377,4 +377,19 @@ export class ReviewController {
         );
     }
 
+    @Get('all/public')
+    @ApiOperation({
+        summary: 'Get all approved reviews (Public)',
+    })
+    @ApiQuery({ name: 'page', required: false })
+    @ApiQuery({ name: 'limit', required: false })
+    async getPublicReviews(
+        @Query() query: GetTraderReviewsQueryDto,
+    ) {
+        return this.reviewService.getPublicReviews(
+            query.page ?? 1,
+            query.limit ?? 10,
+        );
+    }
+
 }

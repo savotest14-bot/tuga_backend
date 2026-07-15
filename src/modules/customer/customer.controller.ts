@@ -12,6 +12,7 @@ import {
 
 import {
   ApiBearerAuth,
+  ApiOperation,
   ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
@@ -24,6 +25,7 @@ import type { Request }
   from 'express';
 import { GetSavedTradersDto } from './dto/get-saved-trader.dto';
 import { SearchTradersQueryDto } from './dto/search-traders-query.dto';
+import { GetTraderReviewsQueryDto } from '../review/dto/get-trader-reviews-query.dto';
 
 @ApiTags('Customer')
 @Controller('customer')

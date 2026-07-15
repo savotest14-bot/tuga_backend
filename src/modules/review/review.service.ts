@@ -304,6 +304,7 @@ export class ReviewService {
                 `review:detail:${review.id}:*`,
             ),
             this.redisService.deleteByPattern('admin:reviews:*'),
+            this.redisService.deleteByPattern(`public:reviews:*`),
         ]);
 
         try {
@@ -672,6 +673,7 @@ export class ReviewService {
                     `review:detail:${reviewId}:*`,
                 ),
                 this.redisService.deleteByPattern('admin:reviews:*'),
+                this.redisService.deleteByPattern(`public:reviews:*`),
             ]);
 
             return await tx.review.update({
@@ -1116,6 +1118,7 @@ export class ReviewService {
                 `review:detail:${reviewId}:*`,
             ),
             this.redisService.deleteByPattern('admin:reviews:*'),
+            this.redisService.deleteByPattern(`public:reviews:*`),
         ]);
 
         return {
@@ -1232,6 +1235,7 @@ export class ReviewService {
                 `review:detail:${reviewId}:*`,
             ),
             this.redisService.deleteByPattern('admin:reviews:*'),
+            this.redisService.deleteByPattern(`public:reviews:*`),
         ]);
 
         /*
@@ -1411,6 +1415,85 @@ export class ReviewService {
             cacheKey,
             result,
             300, // 5 min
+        );
+
+        return result;
+    }
+
+    async getPublicReviews(
+        page: number = 1,
+        limit: number = 10,
+    ) {
+        const cacheKey = `public:reviews:${page}:${limit}`;
+
+        const cached = await this.redisService.get(cacheKey);
+
+        if (cached) {
+            return cached;
+        }
+
+        const skip = (page - 1) * limit;
+
+        const [reviews, total] = await Promise.all([
+            this.prisma.review.findMany({
+                where: {
+                    status: ReviewStatus.APPROVED,
+                    reviewRequestExpiresAt: {
+                        gt: new Date(),
+                    },
+                },
+                include: {
+                    customer: {
+                        select: {
+                            id: true,
+                            fullName: true,
+                            profileImage: true,
+                        },
+                    },
+                    trader: {
+                        select: {
+                            id: true,
+                            fullName: true,
+                            profileImage: true,
+                            traderProfile: {
+                                select: {
+                                    companyName: true,
+                                },
+                            },
+                        },
+                    },
+                },
+                orderBy: {
+                    createdAt: 'desc',
+                },
+                skip,
+                take: limit,
+            }),
+            this.prisma.review.count({
+                where: {
+                    status: ReviewStatus.APPROVED,
+                    reviewRequestExpiresAt: {
+                        gt: new Date(),
+                    },
+                },
+            }),
+        ]);
+
+        const result = {
+            message: 'Approved reviews fetched successfully',
+            data: reviews,
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages: Math.ceil(total / limit),
+            },
+        };
+
+        await this.redisService.set(
+            cacheKey,
+            result,
+            300,
         );
 
         return result;
