@@ -300,7 +300,24 @@ export class AdminService {
 
                         updatedAt: true,
 
-                        traderProfile: true,
+                        traderProfile: {
+                            select: {
+                                id: true,
+                                companyName: true,
+                                companyType: true,
+                                tradeCategories: true,
+                                skillsServices: true,
+                                subCategories: true,
+                                workRadius: true,
+                                location: true,
+                                about: true,
+                                logo: true,
+                                document: true,
+                                verificationStatus: true,
+                                registrationStep: true,
+                                isRegistrationCompleted: true,
+                            },
+                        },
                     },
                 }),
 
@@ -309,6 +326,63 @@ export class AdminService {
                 }),
             ]);
 
+        const formattedTraders = await Promise.all(
+            traders.map(async (trader) => {
+                const profile = trader.traderProfile;
+
+                if (!profile) return trader;
+
+                const [tradeCategories, skillsServices, subCategories] =
+                    await Promise.all([
+                        this.prisma.category.findMany({
+                            where: {
+                                id: {
+                                    in: profile.tradeCategories,
+                                },
+                            },
+                            select: {
+                                id: true,
+                                name: true,
+                            },
+                        }),
+
+                        this.prisma.skillService.findMany({
+                            where: {
+                                id: {
+                                    in: profile.skillsServices,
+                                },
+                            },
+                            select: {
+                                id: true,
+                                name: true,
+                            },
+                        }),
+
+                        this.prisma.subCategory.findMany({
+                            where: {
+                                id: {
+                                    in: profile.subCategories,
+                                },
+                            },
+                            select: {
+                                id: true,
+                                name: true,
+                            },
+                        }),
+                    ]);
+
+                return {
+                    ...trader,
+                    traderProfile: {
+                        ...profile,
+                        tradeCategories,
+                        skillsServices,
+                        subCategories,
+                    },
+                };
+            }),
+        );
+
         const result = {
 
             success: true,
@@ -316,7 +390,7 @@ export class AdminService {
             message:
                 'Traders fetched successfully',
 
-            data: traders,
+            data: formattedTraders,
 
             pagination: {
 
