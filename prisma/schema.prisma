@@ -879,8 +879,7 @@ model Conversation {
 
   messages Message[]
 
-  @@unique([jobId, customerId, traderId])
-  @@unique([customerId, traderId, type])
+  @@unique([customerId, traderId, type, jobId])
   @@index([jobId])
   @@index([customerId])
   @@index([traderId])

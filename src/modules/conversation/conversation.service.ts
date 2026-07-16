@@ -25,63 +25,106 @@ export class ConversationService {
     traderId: string,
     jobId?: string,
   ) {
-
     /*
     |--------------------------------------------------------------------------
-    | CHECK EXISTING CONVERSATION
+    | JOB CHAT
     |--------------------------------------------------------------------------
     */
-
-    const existing =
-      await this.prisma.conversation.findFirst({
+    if (jobId) {
+      // Same job conversation already exists
+      const existingJob = await this.prisma.conversation.findFirst({
         where: {
           customerId,
           traderId,
-
-          jobId:
-            jobId || null,
+          type: 'JOB',
+          jobId,
+        },
+        include: {
+          customer: true,
+          trader: true,
+          job: true,
         },
       });
 
-    if (existing) {
-      return existing;
+      if (existingJob) {
+        return existingJob;
+      }
+
+      // Existing direct conversation
+      const directConversation = await this.prisma.conversation.findFirst({
+        where: {
+          customerId,
+          traderId,
+          type: 'DIRECT',
+        },
+      });
+
+      // First job -> convert DIRECT to JOB
+      if (directConversation) {
+        return this.prisma.conversation.update({
+          where: {
+            id: directConversation.id,
+          },
+          data: {
+            type: 'JOB',
+            jobId,
+          },
+          include: {
+            customer: true,
+            trader: true,
+            job: true,
+          },
+        });
+      }
+
+      // No direct and no same job -> create new JOB conversation
+      return this.prisma.conversation.create({
+        data: {
+          customerId,
+          traderId,
+          jobId,
+          type: 'JOB',
+        },
+        include: {
+          customer: true,
+          trader: true,
+          job: true,
+        },
+      });
     }
 
     /*
     |--------------------------------------------------------------------------
-    | CREATE CONVERSATION
+    | DIRECT CHAT
     |--------------------------------------------------------------------------
     */
 
-    await Promise.all([
-      this.redisService.del(
-        `chat:conversations:${customerId}`,
-      ),
-      this.redisService.del(
-        `chat:conversations:${traderId}`,
-      ),
-    ]);
+    const existingDirect = await this.prisma.conversation.findFirst({
+      where: {
+        customerId,
+        traderId,
+        type: 'DIRECT',
+      },
+      include: {
+        customer: true,
+        trader: true,
+        job: true,
+      },
+    });
+
+    if (existingDirect) {
+      return existingDirect;
+    }
 
     return this.prisma.conversation.create({
       data: {
-
         customerId,
-
         traderId,
-
-        jobId,
-
-        type: jobId
-          ? 'JOB'
-          : 'DIRECT',
+        type: 'DIRECT',
       },
-
       include: {
-
         customer: true,
-
         trader: true,
-
         job: true,
       },
     });
