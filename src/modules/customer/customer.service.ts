@@ -338,88 +338,208 @@ export class CustomerService {
         customerId: string,
         query: GetSavedTradersDto,
     ) {
-
         const {
             page = 1,
             limit = 10,
         } = query;
 
-        const skip =
-            (page - 1) * limit;
+        const skip = (page - 1) * limit;
 
-        const cacheKey =
-            `saved-traders:${customerId}:${page}:${limit}`;
+        const cacheKey = `saved-traders:${customerId}:${page}:${limit}`;
 
-        const cached =
-            await this.redisService.get(cacheKey);
+        const cached = await this.redisService.get(cacheKey);
 
         if (cached) {
             return cached;
         }
 
-        const [savedTraders, total] =
-            await Promise.all([
-
-                this.prisma.savedTrader.findMany({
-                    where: {
-                        customerId,
-                    },
-
-                    include: {
-                        trader: {
-                            select: {
-                                id: true,
-                                fullName: true,
-                                email: true,
-                                phone: true,
-                                profileImage: true,
-                                role: true,
-                                traderProfile: {
-                                    select: {
-                                        location: true,
-                                    },
+        const [savedTraders, total] = await Promise.all([
+            this.prisma.savedTrader.findMany({
+                where: {
+                    customerId,
+                },
+                include: {
+                    trader: {
+                        select: {
+                            id: true,
+                            fullName: true,
+                            email: true,
+                            phone: true,
+                            profileImage: true,
+                            role: true,
+                            traderProfile: {
+                                select: {
+                                    location: true,
+                                    tradeCategories: true,
+                                    skillsServices: true,
+                                    subCategories: true,
+                                    companyName: true,
+                                    companyType: true,
+                                    registrationNumber: true,
+                                    workRadius: true,
                                 },
-                                traderMetrics: {
-                                    select: {
-                                        averageRating: true,
-                                        bayesianRating: true,
-                                        totalReviews: true,
-                                        completedJobs: true,
-                                        responseRate: true,
-                                    },
+                            },
+                            traderMetrics: {
+                                select: {
+                                    averageRating: true,
+                                    bayesianRating: true,
+                                    totalReviews: true,
+                                    completedJobs: true,
+                                    responseRate: true,
                                 },
                             },
                         },
                     },
+                },
+                orderBy: {
+                    createdAt: 'desc',
+                },
+                skip,
+                take: limit,
+            }),
 
-                    orderBy: {
-                        createdAt: 'desc',
+            this.prisma.savedTrader.count({
+                where: {
+                    customerId,
+                },
+            }),
+        ]);
+
+        // Collect all unique IDs
+        const tradeCategoryIds = [
+            ...new Set(
+                savedTraders.flatMap(
+                    (item) =>
+                        item.trader.traderProfile?.tradeCategories || [],
+                ),
+            ),
+        ];
+
+        const skillServiceIds = [
+            ...new Set(
+                savedTraders.flatMap(
+                    (item) =>
+                        item.trader.traderProfile?.skillsServices || [],
+                ),
+            ),
+        ];
+
+        const subCategoryIds = [
+            ...new Set(
+                savedTraders.flatMap(
+                    (item) =>
+                        item.trader.traderProfile?.subCategories || [],
+                ),
+            ),
+        ];
+
+        // Fetch names
+        const [categories, skillServices, subCategories] =
+            await Promise.all([
+                this.prisma.category.findMany({
+                    where: {
+                        id: {
+                            in: tradeCategoryIds,
+                        },
                     },
-
-                    skip,
-                    take: limit,
+                    select: {
+                        id: true,
+                        name: true,
+                    },
                 }),
 
-                this.prisma.savedTrader.count({
+                this.prisma.skillService.findMany({
                     where: {
-                        customerId,
+                        id: {
+                            in: skillServiceIds,
+                        },
+                    },
+                    select: {
+                        id: true,
+                        name: true,
+                    },
+                }),
+
+                this.prisma.subCategory.findMany({
+                    where: {
+                        id: {
+                            in: subCategoryIds,
+                        },
+                    },
+                    select: {
+                        id: true,
+                        name: true,
                     },
                 }),
             ]);
 
+        // Create lookup maps
+        const categoryMap = new Map(
+            categories.map((item) => [item.id, item.name]),
+        );
+
+        const skillServiceMap = new Map(
+            skillServices.map((item) => [item.id, item.name]),
+        );
+
+        const subCategoryMap = new Map(
+            subCategories.map((item) => [item.id, item.name]),
+        );
+
+        // Attach names
+        const updatedSavedTraders = savedTraders.map((savedTrader) => {
+            const profile = savedTrader.trader.traderProfile;
+
+            if (!profile) {
+                return savedTrader;
+            }
+
+            return {
+                ...savedTrader,
+                trader: {
+                    ...savedTrader.trader,
+                    traderProfile: {
+                        ...profile,
+
+                        tradeCategories: profile.tradeCategories,
+
+                        tradeCategoryDetails: (
+                            profile.tradeCategories || []
+                        ).map((id) => ({
+                            id,
+                            name: categoryMap.get(id) || null,
+                        })),
+
+                        skillsServices: profile.skillsServices,
+
+                        skillServiceDetails: (
+                            profile.skillsServices || []
+                        ).map((id) => ({
+                            id,
+                            name: skillServiceMap.get(id) || null,
+                        })),
+
+                        subCategories: profile.subCategories,
+
+                        subCategoryDetails: (
+                            profile.subCategories || []
+                        ).map((id) => ({
+                            id,
+                            name: subCategoryMap.get(id) || null,
+                        })),
+                    },
+                },
+            };
+        });
+
         const result = {
-            message:
-                'Saved traders fetched successfully',
-
-            data: savedTraders,
-
+            message: 'Saved traders fetched successfully',
+            data: updatedSavedTraders,
             meta: {
                 total,
                 page,
                 limit,
-                totalPages: Math.ceil(
-                    total / limit,
-                ),
+                totalPages: Math.ceil(total / limit),
             },
         };
 
@@ -737,4 +857,163 @@ export class CustomerService {
             },
         };
     }
+
+    async getJobDetails(id: string) {
+        const cacheKey = `admin:job:${id}`;
+
+        const cached = await this.redisService.get(cacheKey);
+
+        if (cached) {
+            return cached;
+        }
+
+        const job = await this.prisma.job.findUnique({
+            where: { id },
+
+            include: {
+                customer: {
+                    select: {
+                        id: true,
+                        fullName: true,
+                        email: true,
+                        phone: true,
+                        profileImage: true,
+                        createdAt: true,
+                    },
+                },
+
+                category: {
+                    select: {
+                        id: true,
+                        name: true,
+                    },
+                },
+
+                subCategory: {
+                    select: {
+                        id: true,
+                        name: true,
+                    },
+                },
+
+                skillService: {
+                    select: {
+                        id: true,
+                        name: true,
+                    },
+                },
+
+                selectedTrader: {
+                    select: {
+                        id: true,
+                        fullName: true,
+                        email: true,
+                        phone: true,
+                        profileImage: true,
+                    },
+                },
+
+                attachments: true,
+
+                traderMatches: {
+                    include: {
+                        trader: {
+                            select: {
+                                id: true,
+                                fullName: true,
+                                email: true,
+                                phone: true,
+                                profileImage: true,
+                            },
+                        },
+                    },
+                    orderBy: {
+                        createdAt: 'asc',
+                    },
+                },
+
+                quotes: {
+                    include: {
+                        trader: {
+                            select: {
+                                id: true,
+                                fullName: true,
+                                email: true,
+                                phone: true,
+                                profileImage: true,
+                            },
+                        },
+                    },
+                    orderBy: {
+                        createdAt: 'desc',
+                    },
+                },
+
+                conversations: {
+                    select: {
+                        id: true,
+                        createdAt: true,
+                    },
+                },
+
+                reviews: {
+                    include: {
+                        customer: {
+                            select: {
+                                id: true,
+                                fullName: true,
+                            },
+                        },
+                        trader: {
+                            select: {
+                                id: true,
+                                fullName: true,
+                            },
+                        },
+                    },
+                },
+
+                escalationLogs: {
+                    orderBy: {
+                        createdAt: 'desc',
+                    },
+                },
+
+                _count: {
+                    select: {
+                        quotes: true,
+                        traderMatches: true,
+                        conversations: true,
+                        reviews: true,
+                        attachments: true,
+                    },
+                },
+            },
+        });
+
+        if (!job) {
+            throw new NotFoundException('Job not found');
+        }
+
+        const result = {
+            message: 'Job details fetched successfully',
+
+            data: {
+                ...job,
+
+                counts: {
+                    quotes: job._count.quotes,
+                    traderMatches: job._count.traderMatches,
+                    conversations: job._count.conversations,
+                    reviews: job._count.reviews,
+                    attachments: job._count.attachments,
+                },
+            },
+        };
+
+        await this.redisService.set(cacheKey, result, 300);
+
+        return result;
+    }
+
 }

@@ -172,4 +172,10 @@ export class CustomerController {
     );
   }
 
+  @Get('jobs/:id')
+    @ApiBearerAuth('access-token')
+    async getJobDetails(@Param('id', ParseUUIDPipe) id: string) {
+        return this.customerService.getJobDetails(id);
+    }
+
 }
