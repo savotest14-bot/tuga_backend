@@ -126,7 +126,13 @@ export class AuthModule
         {
           path: 'auth/verify-otp',
           method: RequestMethod.POST,
-        }
+        },
+        {
+          path: 'auth/trader/categories',
+          method: RequestMethod.PUT,
+        },
       );
+
   }
+
 }
