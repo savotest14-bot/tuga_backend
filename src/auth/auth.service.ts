@@ -29,6 +29,7 @@ import { RedisService } from 'src/redis/redis.service';
 import { ModerationService } from 'src/modules/moderation/moderation.service';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { isEAN } from 'class-validator';
+import { UpdateTraderCategoriesDto } from './dto/update-trade-categories.dto';
 
 @Injectable()
 export class AuthService {
@@ -230,9 +231,6 @@ export class AuthService {
 
                     traderProfile: {
                         create: {
-                            tradeCategories:
-                                data.tradeCategories || [],
-
                             workRadius:
                                 data.workRadius,
 
@@ -280,6 +278,7 @@ export class AuthService {
                     ?.registrationStep,
         };
     }
+
     async traderRegisterStep2(
         userId: string,
 
@@ -331,12 +330,6 @@ export class AuthService {
 
                 registrationNumber:
                     data.registrationNumber,
-
-                skillsServices:
-                    data.skillServiceIds || [],
-
-                subCategories:
-                    data.subCategoryIds || [],
 
                 about:
                     data.about,
@@ -854,6 +847,7 @@ export class AuthService {
             subscription,
         };
     }
+
     async registrationStatus(
         userId: string,
     ) {
@@ -879,15 +873,12 @@ export class AuthService {
                 select: {
 
                     // Step 1
-                    tradeCategories: true,
                     workRadius: true,
 
                     // Step 2
                     companyName: true,
                     companyType: true,
                     registrationNumber: true,
-                    skillsServices: true,
-                    subCategories: true,
                     about: true,
                     location: true,
                     logo: true,
@@ -913,67 +904,12 @@ export class AuthService {
             );
         }
 
-        // Selected Categories
-
-        const categories =
-            await this.prisma.category.findMany({
-                where: {
-                    id: {
-                        in:
-                            trader.tradeCategories || [],
-                    },
-                },
-
-                select: {
-                    id: true,
-                    name: true,
-                    image: true,
-                },
-            });
-
-        // Selected Skill Services
-
-        const skills =
-            await this.prisma.skillService.findMany({
-                where: {
-                    id: {
-                        in:
-                            trader.skillsServices || [],
-                    },
-                },
-
-                select: {
-                    id: true,
-                    name: true,
-                    image: true,
-                },
-            });
-
-        // Selected Sub Categories
-
-        const subCategories =
-            await this.prisma.subCategory.findMany({
-                where: {
-                    id: {
-                        in:
-                            trader.subCategories || [],
-                    },
-                },
-
-                select: {
-                    id: true,
-                    name: true,
-                    image: true,
-                },
-            });
 
         // STEP 1 CHECK
 
         const step1Completed =
-            !!(
-                trader.tradeCategories?.length &&
-                trader.workRadius
-            );
+            !!trader.workRadius;
+
 
         // STEP 2 REQUIRED FIELDS
 
@@ -987,12 +923,6 @@ export class AuthService {
 
             registrationNumber:
                 !!trader.registrationNumber,
-
-            skillsServices:
-                !!trader.skillsServices?.length,
-
-            subCategories:
-                !!trader.subCategories?.length,
 
             about:
                 !!trader.about,
@@ -1103,17 +1033,6 @@ export class AuthService {
 
             pendingStep2Fields,
 
-            // Selected Data
-
-            selectedCategories:
-                categories,
-
-            selectedSkillServices:
-                skills,
-
-            selectedSubCategories:
-                subCategories,
-
             // Existing Data
 
             traderData: {
@@ -1154,6 +1073,100 @@ export class AuthService {
         );
 
         return result;
+    }
+
+    async updateTraderCategories(
+        userId: string,
+        data: UpdateTraderCategoriesDto,
+    ) {
+        const trader = await this.prisma.traderProfile.findUnique({
+            where: {
+                userId,
+            },
+        });
+
+        if (!trader) {
+            throw new BadRequestException(
+                'Trader profile not found',
+            );
+        }
+
+        // Remove duplicates (keep first occurrence)
+        const tradeCategories = data.tradeCategories
+            ? [...new Set(data.tradeCategories)]
+            : undefined;
+
+        const subCategoryIds = data.subCategoryIds
+            ? [...new Set(data.subCategoryIds)]
+            : undefined;
+
+        const skillServiceIds = data.skillServiceIds
+            ? [...new Set(data.skillServiceIds)]
+            : undefined;
+
+        // Validate subscription plan
+        if (tradeCategories !== undefined) {
+            const subscription =
+                await this.prisma.subscription.findUnique({
+                    where: {
+                        traderProfileId: trader.id,
+                    },
+                    include: {
+                        plan: true,
+                    },
+                });
+
+            if (!subscription?.plan) {
+                throw new BadRequestException(
+                    'No active subscription plan found',
+                );
+            }
+
+            if (
+                !subscription.plan.unlimitedTrades &&
+                tradeCategories.length >
+                subscription.plan.maxTrades
+            ) {
+                throw new BadRequestException(
+                    `Your ${subscription.plan.name} plan allows only ${subscription.plan.maxTrades} trade categories`,
+                );
+            }
+        }
+
+        await this.prisma.traderProfile.update({
+            where: {
+                userId,
+            },
+            data: {
+                tradeCategories:
+                    tradeCategories ?? trader.tradeCategories,
+
+                subCategories:
+                    subCategoryIds ?? trader.subCategories,
+
+                skillsServices:
+                    skillServiceIds ?? trader.skillsServices,
+            },
+        });
+
+        await Promise.all([
+            this.redisService.del(
+                `admin:user-details:${userId}`,
+            ),
+            this.redisService.del(
+                `profile:${userId}`,
+            ),
+            this.redisService.del(
+                `registration-status:${userId}`,
+            ),
+            this.redisService.deleteByPattern(
+                'traders:*',
+            ),
+        ]);
+
+        return {
+            message: 'Trader categories updated successfully',
+        };
     }
 
 
@@ -1259,7 +1272,7 @@ export class AuthService {
                 email: user.email,
                 role: user.role,
                 isEmailVerified: user.isEmailVerified,
-                otp:user.verificationOtp,
+                otp: user.verificationOtp,
             },
         };
     }

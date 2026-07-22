@@ -40,47 +40,47 @@ export class TraderRegisterStep2Dto {
   @IsString()
   registrationNumber?: string;
 
-  @ApiPropertyOptional({
-    example: ['service-1', 'service-2'],
-    type: [String],
-  })
-  @Transform(({ value }) => {
-    if (Array.isArray(value)) {
-      return value.map(item => typeof item === 'string' ? item.trim() : item).filter(Boolean);
-    }
-    if (typeof value === 'string') {
-      return value
-        .split(',')
-        .map((item) => item.trim())
-        .filter(Boolean);
-    }
-    return [];
-  })
-  @IsOptional()
-  @IsArray()
-  @IsUUID('all', { each: true })
-  skillServiceIds?: string[];
+  // @ApiPropertyOptional({
+  //   example: ['service-1', 'service-2'],
+  //   type: [String],
+  // })
+  // @Transform(({ value }) => {
+  //   if (Array.isArray(value)) {
+  //     return value.map(item => typeof item === 'string' ? item.trim() : item).filter(Boolean);
+  //   }
+  //   if (typeof value === 'string') {
+  //     return value
+  //       .split(',')
+  //       .map((item) => item.trim())
+  //       .filter(Boolean);
+  //   }
+  //   return [];
+  // })
+  // @IsOptional()
+  // @IsArray()
+  // @IsUUID('all', { each: true })
+  // skillServiceIds?: string[];
 
-  @ApiPropertyOptional({
-    example: ['sub-category-1', 'sub-category-2'],
-    type: [String],
-  })
-  @Transform(({ value }) => {
-    if (Array.isArray(value)) {
-      return value.map(item => typeof item === 'string' ? item.trim() : item).filter(Boolean);
-    }
-    if (typeof value === 'string') {
-      return value
-        .split(',')
-        .map((item) => item.trim())
-        .filter(Boolean);
-    }
-    return [];
-  })
-  @IsOptional()
-  @IsArray()
-  @IsUUID('all', { each: true })
-  subCategoryIds?: string[];
+  // @ApiPropertyOptional({
+  //   example: ['sub-category-1', 'sub-category-2'],
+  //   type: [String],
+  // })
+  // @Transform(({ value }) => {
+  //   if (Array.isArray(value)) {
+  //     return value.map(item => typeof item === 'string' ? item.trim() : item).filter(Boolean);
+  //   }
+  //   if (typeof value === 'string') {
+  //     return value
+  //       .split(',')
+  //       .map((item) => item.trim())
+  //       .filter(Boolean);
+  //   }
+  //   return [];
+  // })
+  // @IsOptional()
+  // @IsArray()
+  // @IsUUID('all', { each: true })
+  // subCategoryIds?: string[];
 
   @ApiPropertyOptional({
     example:

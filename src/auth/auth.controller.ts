@@ -32,6 +32,7 @@ import { multerOptions } from '../common/helpers/multer.helper';
 import { UpdateProfileDto } from './dto/updateProfile.dto';
 import { UpdateTraderAssetsDto } from './dto/update-trader-assest.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
+import { UpdateTraderCategoriesDto } from './dto/update-trade-categories.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -76,18 +77,6 @@ export class AuthController {
         registrationNumber: {
           type: 'string',
           example: 'REG123456',
-        },
-        skillServiceIds: {
-          type: 'array',
-          items: {
-            type: 'string',
-          },
-        },
-        subCategoryIds: {
-          type: 'array',
-          items: {
-            type: 'string',
-          },
         },
         about: {
           type: 'string',
@@ -192,6 +181,18 @@ export class AuthController {
   ) {
     return this.authService.registrationStatus(
       req['user'].id,
+    );
+  }
+
+  @Put('trader/categories')
+  @ApiBearerAuth('access-token')
+  async updateTraderCategories(
+    @Req() req: Request,
+    @Body() body: UpdateTraderCategoriesDto,
+  ) {
+    return this.authService.updateTraderCategories(
+      req['user'].id,
+      body,
     );
   }
 

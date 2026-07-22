@@ -77,17 +77,17 @@ export class TraderRegisterStep1Dto {
 )
   confirmPassword: string;
 
-  @ApiPropertyOptional({
-    example: [
-      'category-id-1',
-      'category-id-2',
-    ],
-    type: [String],
-  })
-  @IsOptional()
-  @IsArray()
-  @IsUUID('all', { each: true })
-  tradeCategories?: string[];
+  // @ApiPropertyOptional({
+  //   example: [
+  //     'category-id-1',
+  //     'category-id-2',
+  //   ],
+  //   type: [String],
+  // })
+  // @IsOptional()
+  // @IsArray()
+  // @IsUUID('all', { each: true })
+  // tradeCategories?: string[];
 
   @ApiPropertyOptional({
     example: 25,
