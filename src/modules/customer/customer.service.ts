@@ -250,6 +250,8 @@ export class CustomerService {
             SELECT
                 u.id,
                 u."fullName",
+                u."email",
+                u."phone",
                 u."profileImage",
                 u."isVerified",
 
@@ -343,28 +345,28 @@ export class CustomerService {
                 await Promise.all([
                     categoryIds.length > 0
                         ? this.prisma.category.findMany({
-                              where: { id: { in: categoryIds } },
-                              select: { id: true, name: true },
-                          })
+                            where: { id: { in: categoryIds } },
+                            select: { id: true, name: true },
+                        })
                         : [],
                     skillServiceIds.length > 0
                         ? this.prisma.skillService.findMany({
-                              where: { id: { in: skillServiceIds } },
-                              select: { id: true, name: true },
-                          })
+                            where: { id: { in: skillServiceIds } },
+                            select: { id: true, name: true },
+                        })
                         : [],
                     subCategoryIds.length > 0
                         ? this.prisma.subCategory.findMany({
-                              where: { id: { in: subCategoryIds } },
-                              select: { id: true, name: true },
-                          })
+                            where: { id: { in: subCategoryIds } },
+                            select: { id: true, name: true },
+                        })
                         : [],
                     traderProfileIds.length > 0
                         ? this.prisma.traderPortfolio.findMany({
-                              where: {
-                                  traderProfileId: { in: traderProfileIds },
-                              },
-                          })
+                            where: {
+                                traderProfileId: { in: traderProfileIds },
+                            },
+                        })
                         : [],
                 ]);
 
