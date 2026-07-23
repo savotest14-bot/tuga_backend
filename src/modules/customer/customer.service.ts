@@ -35,6 +35,8 @@ export class CustomerService {
         topRated?: string,
         latitude?: number,
         longitude?: number,
+        rating?: number,
+        radius?: number,
     ) {
         const skip = (page - 1) * limit;
 
@@ -80,6 +82,19 @@ export class CustomerService {
         }
 
         // =====================================
+        // RATING FILTER (1, 2, 3, 4, 5)
+        // =====================================
+
+        if (rating !== undefined && rating !== null && !isNaN(Number(rating))) {
+            const ratingNum = Number(rating);
+            conditions.push(
+                Prisma.sql`
+                COALESCE(tm."averageRating", 0) >= ${ratingNum}
+            `,
+            );
+        }
+
+        // =====================================
         // CATEGORY
         // =====================================
 
@@ -110,7 +125,7 @@ export class CustomerService {
         }
 
         // =====================================
-        // DISTANCE CALCULATION
+        // DISTANCE & RADIUS CALCULATION
         // =====================================
 
         let distanceSelect = Prisma.empty;
@@ -130,6 +145,26 @@ export class CustomerService {
                 AND u.location IS NOT NULL
             `,
             );
+
+            if (
+                radius !== undefined &&
+                radius !== null &&
+                !isNaN(Number(radius)) &&
+                Number(radius) > 0
+            ) {
+                const radiusKm = Number(radius);
+                conditions.push(
+                    Prisma.sql`
+                    ST_Distance(
+                        u.location,
+                        ST_SetSRID(
+                            ST_MakePoint(${longitude}, ${latitude}),
+                            4326
+                        )::geography
+                    ) <= ${radiusKm * 1000}
+                `,
+                );
+            }
 
             distanceSelect = Prisma.sql`
             ,
@@ -218,9 +253,15 @@ export class CustomerService {
                 u."profileImage",
                 u."isVerified",
 
+                tp.id AS "traderProfileId",
                 tp."companyName",
                 tp."location",
                 tp.logo,
+                tp.about,
+                tp."aboutUs",
+                tp."tradeCategories",
+                tp."skillsServices",
+                tp."subCategories",
 
                 COALESCE(tm."averageRating", 0) AS "ratingAvg",
                 COALESCE(tm."totalReviews", 0) AS "reviewCount",
@@ -271,9 +312,115 @@ export class CustomerService {
 
         const total = totalResult?.[0]?.total || 0;
 
+        // =====================================
+        // ENRICH WITH PORTFOLIO & CATEGORY NAMES
+        // =====================================
+
+        let formattedTraders = traders;
+
+        if (traders && traders.length > 0) {
+            const traderProfileIds = traders
+                .map((t) => t.traderProfileId)
+                .filter(Boolean);
+
+            const categoryIds = [
+                ...new Set(
+                    traders.flatMap((t) => t.tradeCategories || []),
+                ),
+            ];
+            const skillServiceIds = [
+                ...new Set(
+                    traders.flatMap((t) => t.skillsServices || []),
+                ),
+            ];
+            const subCategoryIds = [
+                ...new Set(
+                    traders.flatMap((t) => t.subCategories || []),
+                ),
+            ];
+
+            const [categories, skillServices, subCategories, portfolioItems] =
+                await Promise.all([
+                    categoryIds.length > 0
+                        ? this.prisma.category.findMany({
+                              where: { id: { in: categoryIds } },
+                              select: { id: true, name: true },
+                          })
+                        : [],
+                    skillServiceIds.length > 0
+                        ? this.prisma.skillService.findMany({
+                              where: { id: { in: skillServiceIds } },
+                              select: { id: true, name: true },
+                          })
+                        : [],
+                    subCategoryIds.length > 0
+                        ? this.prisma.subCategory.findMany({
+                              where: { id: { in: subCategoryIds } },
+                              select: { id: true, name: true },
+                          })
+                        : [],
+                    traderProfileIds.length > 0
+                        ? this.prisma.traderPortfolio.findMany({
+                              where: {
+                                  traderProfileId: { in: traderProfileIds },
+                              },
+                          })
+                        : [],
+                ]);
+
+            const categoryMap = new Map<string, any>(
+                categories.map((c): [string, any] => [c.id, c]),
+            );
+            const skillServiceMap = new Map<string, any>(
+                skillServices.map((s): [string, any] => [s.id, s]),
+            );
+            const subCategoryMap = new Map<string, any>(
+                subCategories.map((sc): [string, any] => [sc.id, sc]),
+            );
+
+            const portfolioMap = new Map<string, any[]>();
+            for (const item of portfolioItems) {
+                if (!portfolioMap.has(item.traderProfileId)) {
+                    portfolioMap.set(item.traderProfileId, []);
+                }
+                portfolioMap.get(item.traderProfileId)!.push(item);
+            }
+
+            formattedTraders = traders.map((t) => {
+                const tCategories = (t.tradeCategories || [])
+                    .map((id: string) => categoryMap.get(id))
+                    .filter(Boolean);
+                const tSkills = (t.skillsServices || [])
+                    .map((id: string) => skillServiceMap.get(id))
+                    .filter(Boolean);
+                const tSubCategories = (t.subCategories || [])
+                    .map((id: string) => subCategoryMap.get(id))
+                    .filter(Boolean);
+
+                const categoryNames = tCategories.map((c: any) => c.name);
+                const skillNames = tSkills.map((s: any) => s.name);
+                const subCategoryNames = tSubCategories.map((sc: any) => sc.name);
+
+                return {
+                    ...t,
+                    aboutUs: t.aboutUs || t.about || null,
+                    portfolio: portfolioMap.get(t.traderProfileId) || [],
+                    tradeCategories: tCategories,
+                    tradeCategoryName: categoryNames.join(', '),
+                    tradeCategoryNames: categoryNames,
+                    skillsServices: tSkills,
+                    skillServiceName: skillNames.join(', '),
+                    skillServiceNames: skillNames,
+                    subCategories: tSubCategories,
+                    subCategoryName: subCategoryNames.join(', '),
+                    subCategoryNames: subCategoryNames,
+                };
+            });
+        }
+
         return {
             success: true,
-            data: traders,
+            data: formattedTraders,
             pagination: {
                 total,
                 page,

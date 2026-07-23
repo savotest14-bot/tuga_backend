@@ -78,4 +78,19 @@ export class SearchTradersQueryDto {
   })
   @IsBoolean()
   topRated?: boolean;
+
+  @ApiPropertyOptional({ description: 'Minimum rating filter (1 to 5)' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  @Max(5)
+  rating?: number;
+
+  @ApiPropertyOptional({ description: 'Radius filter in km (e.g. 20 for under 20km search)' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  radius?: number;
 }

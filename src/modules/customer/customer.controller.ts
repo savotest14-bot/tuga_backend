@@ -95,6 +95,16 @@ export class CustomerController {
     required: false,
     example: true,
   })
+  @ApiQuery({
+    name: 'rating',
+    required: false,
+    example: 4,
+  })
+  @ApiQuery({
+    name: 'radius',
+    required: false,
+    example: 20,
+  })
 
   @Get('search-traders')
   async searchTraders(
@@ -116,6 +126,8 @@ export class CustomerController {
       query.topRated !== undefined ? String(query.topRated) : undefined,
       query.latitude,
       query.longitude,
+      query.rating,
+      query.radius,
     );
   }
 
