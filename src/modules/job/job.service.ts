@@ -1702,11 +1702,11 @@ export class JobService {
             );
         }
 
-        if (job.status !== 'POSTED') {
-            throw new BadRequestException(
-                'Only posted jobs can be closed',
-            );
-        }
+        // if (job.status !== 'POSTED') {
+        //     throw new BadRequestException(
+        //         'Only posted jobs can be closed',
+        //     );
+        // }
 
         await this.prisma.job.update({
             where: {
