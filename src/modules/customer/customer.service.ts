@@ -261,12 +261,14 @@ export class CustomerService {
                 tp.logo,
                 tp.about,
                 tp."aboutUs",
+                tp."minimumExperience",
                 tp."tradeCategories",
                 tp."skillsServices",
                 tp."subCategories",
 
-                COALESCE(tm."averageRating", 0) AS "ratingAvg",
-                COALESCE(tm."totalReviews", 0) AS "reviewCount",
+                COALESCE(tm."averageRating", 0) AS "averageRating",
+                COALESCE(tm."totalReviews", 0) AS "totalReviews",
+                COALESCE(tm."completedJobs", 0) AS "completedJobs",
 
                 tp."workRadius",
                 tp."subscriptionTier"

@@ -1678,4 +1678,64 @@ export class JobService {
                 'Job distribution closed successfully',
         };
     }
+
+    async closeMyJob(
+        customerId: string,
+        jobId: string,
+    ) {
+        const job = await this.prisma.job.findFirst({
+            where: {
+                id: jobId,
+                customerId,
+            },
+        });
+
+        if (!job) {
+            throw new NotFoundException(
+                'Job not found',
+            );
+        }
+
+        if (job.distributionStatus === 'COMPLETED') {
+            throw new BadRequestException(
+                'Job is already closed',
+            );
+        }
+
+        if (job.status !== 'POSTED') {
+            throw new BadRequestException(
+                'Only posted jobs can be closed',
+            );
+        }
+
+        await this.prisma.job.update({
+            where: {
+                id: jobId,
+            },
+            data: {
+                distributionStatus: 'COMPLETED',
+                status: 'CLOSED',
+                escalationVersion: {
+                    increment: 1,
+                },
+            },
+        });
+
+        await Promise.all([
+            this.redisService.deleteByPattern(
+                'admin:manual-review-jobs:*',
+            ),
+            this.redisService.deleteByPattern(
+                `customer:jobs:${customerId}:*`,
+            ),
+            this.redisService.deleteByPattern(
+                'admin:jobs:*',
+            ),
+            this.redisService.del(`admin:job:${jobId}`),
+        ]);
+
+        return {
+            message: 'Job closed successfully',
+        };
+    }
 }

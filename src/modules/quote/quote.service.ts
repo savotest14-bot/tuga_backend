@@ -1065,6 +1065,18 @@ export class QuoteService {
                             fullName: true,
                             email: true,
                             profileImage: true,
+                            traderProfile: {
+                                select: {
+                                    companyName: true,
+                                    workRadius: true,
+                                },
+                            },
+                            traderMetrics: {
+                                select: {
+                                    averageRating: true,
+                                    totalReviews: true,
+                                },
+                            },
                         },
                     },
                 },
@@ -1221,5 +1233,5 @@ export class QuoteService {
         );
         return result;
     }
-    
+
 }

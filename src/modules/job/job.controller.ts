@@ -426,4 +426,16 @@ export class JobController {
         );
     }
 
+    @Post(':id/close')
+    @ApiBearerAuth('access-token')
+    async closeMyJob(
+        @Req() req: Request,
+        @Param('id', ParseUUIDPipe) id: string,
+    ) {
+        return this.jobService.closeMyJob(
+            req['user'].id,
+            id,
+        );
+    }
+
 }
