@@ -56,12 +56,12 @@ export class TraderRegisterStep1Dto {
   })
   @IsString()
   @Matches(
-  /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,64}$/,
-  {
-    message:
-      'Password must contain at least one uppercase letter, one lowercase letter, one number, one special character, and be between 8 and 64 characters long.',
-  },
-)
+    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,64}$/,
+    {
+      message:
+        'Password must contain at least one uppercase letter, one lowercase letter, one number, one special character, and be between 8 and 64 characters long.',
+    },
+  )
   password: string;
 
   @ApiProperty({
@@ -69,12 +69,12 @@ export class TraderRegisterStep1Dto {
   })
   @IsString()
   @Matches(
-  /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,64}$/,
-  {
-    message:
-      'Password must contain at least one uppercase letter, one lowercase letter, one number, one special character, and be between 8 and 64 characters long.',
-  },
-)
+    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,64}$/,
+    {
+      message:
+        'Password must contain at least one uppercase letter, one lowercase letter, one number, one special character, and be between 8 and 64 characters long.',
+    },
+  )
   confirmPassword: string;
 
   // @ApiPropertyOptional({
@@ -98,6 +98,14 @@ export class TraderRegisterStep1Dto {
   @Min(1)
   @Max(500)
   workRadius?: number;
+
+  @ApiPropertyOptional({
+    example: 'Dubai Marina',
+  })
+  @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)
+  @IsOptional()
+  @IsString()
+  location?: string;
 
   @ApiPropertyOptional({
     example: 25.2048,

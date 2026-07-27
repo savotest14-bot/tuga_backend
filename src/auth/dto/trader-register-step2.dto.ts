@@ -91,13 +91,13 @@ export class TraderRegisterStep2Dto {
   @IsString()
   about?: string;
 
-  @ApiPropertyOptional({
-    example: 'Dubai Marina',
-  })
-  @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)
-  @IsOptional()
-  @IsString()
-  location?: string;
+  // @ApiPropertyOptional({
+  //   example: 'Dubai Marina',
+  // })
+  // @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)
+  // @IsOptional()
+  // @IsString()
+  // location?: string;
 
   @ApiPropertyOptional({
     example: true,

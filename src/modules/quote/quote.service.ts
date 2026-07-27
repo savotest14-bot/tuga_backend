@@ -259,6 +259,7 @@ export class QuoteService {
         traderId: string,
         jobId: string,
         dto: CreateQuoteDto,
+        files: Express.Multer.File[] = [],
     ) {
 
         /*
@@ -499,6 +500,14 @@ export class QuoteService {
                                 estimatedDays:
                                     dto.estimatedDays,
                                 message: dto.message,
+                                attachments: {
+                                    create: files?.map((file) => ({
+                                        file: `uploads/quotes/${file.filename}`,
+                                        filename: file.originalname,
+                                        mimeType: file.mimetype,
+                                        size: file.size,
+                                    })) || [],
+                                },
                             },
 
                             include: {
@@ -517,6 +526,8 @@ export class QuoteService {
                                         status: true,
                                     },
                                 },
+
+                                attachments: true,
                             },
                         });
 
@@ -645,7 +656,13 @@ export class QuoteService {
             message:
                 'Quote submitted successfully',
 
-            data: result,
+            data: {
+                ...result,
+                attachments: result?.attachments?.map(a => ({
+                    ...a,
+                    url: `${process.env.APP_URL}/${a.file}`,
+                })) || [],
+            },
         };
     }
 
@@ -1079,6 +1096,7 @@ export class QuoteService {
                             },
                         },
                     },
+                    attachments: true,
                 },
 
                 orderBy: {
@@ -1090,7 +1108,13 @@ export class QuoteService {
             message:
                 'Quotes fetched successfully',
 
-            data: quotes,
+            data: quotes.map(q => ({
+                ...q,
+                attachments: q.attachments?.map(a => ({
+                    ...a,
+                    url: `${process.env.APP_URL}/${a.file}`,
+                })) || [],
+            })),
         };
 
         await this.redisService.set(
@@ -1140,6 +1164,7 @@ export class QuoteService {
                                 title: true,
                             },
                         },
+                        attachments: true,
                     },
 
                     orderBy: {
@@ -1161,7 +1186,13 @@ export class QuoteService {
             message:
                 'Quotes fetched successfully',
 
-            data: quotes,
+            data: quotes.map(q => ({
+                ...q,
+                attachments: q.attachments?.map(a => ({
+                    ...a,
+                    url: `${process.env.APP_URL}/${a.file}`,
+                })) || [],
+            })),
 
             meta: {
                 total,
@@ -1211,6 +1242,7 @@ export class QuoteService {
                             title: true,
                         },
                     },
+                    attachments: true,
                 },
             });
 
@@ -1224,7 +1256,13 @@ export class QuoteService {
             message:
                 'Quote fetched successfully',
 
-            data: quote,
+            data: {
+                ...quote,
+                attachments: quote?.attachments?.map(a => ({
+                    ...a,
+                    url: `${process.env.APP_URL}/${a.file}`,
+                })) || [],
+            },
         };
         await this.redisService.set(
             cacheKey,

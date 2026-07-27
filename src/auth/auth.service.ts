@@ -233,6 +233,8 @@ export class AuthService {
                         create: {
                             workRadius:
                                 data.workRadius,
+                            location:
+                                data.location,
 
                             registrationStep: 1,
                         },
@@ -333,9 +335,6 @@ export class AuthService {
 
                 about:
                     data.about,
-
-                location:
-                    data.location,
 
                 logo,
 
@@ -874,13 +873,13 @@ export class AuthService {
 
                     // Step 1
                     workRadius: true,
+                    location: true,
 
                     // Step 2
                     companyName: true,
                     companyType: true,
                     registrationNumber: true,
                     about: true,
-                    location: true,
                     logo: true,
                     document: true,
 
@@ -908,7 +907,8 @@ export class AuthService {
         // STEP 1 CHECK
 
         const step1Completed =
-            !!trader.workRadius;
+            !!trader.workRadius &&
+            !!trader.location;
 
 
         // STEP 2 REQUIRED FIELDS
@@ -926,9 +926,6 @@ export class AuthService {
 
             about:
                 !!trader.about,
-
-            location:
-                !!trader.location,
 
             logo:
                 !!trader.logo,

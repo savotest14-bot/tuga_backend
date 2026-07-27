@@ -7,11 +7,17 @@ import {
     Query,
     Req,
     ParseUUIDPipe,
+    UploadedFiles,
+    UseInterceptors,
 } from '@nestjs/common';
 
 import {
     ApiBearerAuth,
     ApiTags,
+} from '@nestjs/swagger';
+import {
+    ApiConsumes,
+    ApiBody,
 } from '@nestjs/swagger';
 
 import type { Request } from 'express';
@@ -20,6 +26,8 @@ import { CreateQuoteDto } from './dto/create-quote.dto';
 
 import { QuoteService } from './quote.service';
 import { GetMyQuotesDto } from './dto/get-my-quote.dto';
+import { FileFieldsInterceptor } from '@nestjs/platform-express';
+import { multerOptions } from 'src/common/helpers/multer.helper';
 
 @ApiTags('Quotes')
 @Controller('quotes')
@@ -37,6 +45,32 @@ export class QuoteController {
 
     @Post(':jobId')
     @ApiBearerAuth('access-token')
+    @ApiConsumes('multipart/form-data')
+    @ApiBody({
+        schema: {
+            type: 'object',
+            properties: {
+                price: { type: 'number', nullable: true },
+                estimatedDays: { type: 'number', nullable: true },
+                message: { type: 'string', nullable: true },
+                attachments: {
+                    type: 'array',
+                    items: { type: 'string', format: 'binary' },
+                },
+            },
+        },
+    })
+    @UseInterceptors(
+        FileFieldsInterceptor(
+            [
+                {
+                    name: 'attachments',
+                    maxCount: 10,
+                },
+            ],
+            multerOptions('quotes'),
+        ),
+    )
     async createQuote(
         @Req() req: Request,
 
@@ -45,12 +79,16 @@ export class QuoteController {
 
         @Body()
         dto: CreateQuoteDto,
+
+        @UploadedFiles()
+        files: { attachments?: Express.Multer.File[] },
     ) {
 
         return this.quoteService.createQuote(
             req['user'].id,
             jobId,
             dto,
+            files?.attachments || [],
         );
     }
 
