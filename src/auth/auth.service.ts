@@ -290,6 +290,10 @@ export class AuthService {
             logo?: Express.Multer.File[];
 
             document?: Express.Multer.File[];
+
+            certificates?: Express.Multer.File[];
+
+            insuranceDocuments?: Express.Multer.File[];
         },
     ) {
 
@@ -311,12 +315,33 @@ export class AuthService {
         const logo =
             files?.logo?.[0]
                 ? `/uploads/traders/${files.logo[0].filename}`
-                : null;
+                : trader.logo;
 
         const document =
             files?.document?.[0]
                 ? `/uploads/traders/${files.document[0].filename}`
-                : null;
+                : trader.document;
+
+        const certificateFiles = files?.certificates ?? [];
+        const insuranceFiles = files?.insuranceDocuments ?? [];
+
+        if (certificateFiles.length) {
+            await this.prisma.traderCertificate.createMany({
+                data: certificateFiles.map((file) => ({
+                    traderProfileId: trader.id,
+                    fileUrl: `/uploads/traders/${file.filename}`,
+                })),
+            });
+        }
+
+        if (insuranceFiles.length) {
+            await this.prisma.traderInsuranceDocument.createMany({
+                data: insuranceFiles.map((file) => ({
+                    traderProfileId: trader.id,
+                    fileUrl: `/uploads/traders/${file.filename}`,
+                })),
+            });
+        }
 
         await this.prisma.traderProfile.update({
             where: {
@@ -870,7 +895,6 @@ export class AuthService {
                 },
 
                 select: {
-
                     // Step 1
                     workRadius: true,
                     location: true,
@@ -885,6 +909,7 @@ export class AuthService {
 
                     // Step 3
                     subscriptionTier: true,
+                    subscriptionStatus: true,
 
                     // NEW
                     verificationStatus: true,
@@ -894,6 +919,16 @@ export class AuthService {
 
                     isRegistrationCompleted:
                         true,
+
+                    insured: true,
+
+                    _count: {
+                        select: {
+                            portfolioItems: true,
+                            certificates: true,
+                            insuranceDocuments: true,
+                        },
+                    },
                 },
             });
 
@@ -986,12 +1021,125 @@ export class AuthService {
             step3Completed,
         ].filter(Boolean).length;
 
-        // COMPLETED %
+        // PROFILE STRENGTH / COMPLETION BREAKDOWN (As per Spec)
+        // 1. 0 - 25%: Sign-up complete
+        const stage1Earned = step1Completed ? 25 : 0;
 
-        const completedPercentage =
-            Math.round(
-                (completedSteps / 3) * 100,
-            );
+        // 2. 25 - 50%: Complete dashboard requirements (vetting process)
+        const stage2Earned = step2Completed
+            ? 25
+            : Math.round(((6 - pendingStep2Fields.length) / 6) * 25);
+
+        // 3. 50 - 65%: Approved by Admin
+        const stage3Earned = trader.verificationStatus === 'APPROVED' ? 15 : 0;
+
+        // 4. 65 - 80%: Activate your profile (subscription & payment setup)
+        const isSubActive =
+            trader.subscriptionStatus === 'ACTIVE' ||
+            trader.subscriptionStatus === 'TRIAL';
+        const stage4Earned =
+            !!trader.subscriptionTier && isSubActive
+                ? 15
+                : trader.subscriptionTier
+                    ? 10
+                    : 0;
+
+        // 5. 80 - 90%: Add About & upload job portfolio (photos / videos of your work)
+        const aboutAdded = !!trader.about && trader.about.trim().length > 0;
+        const portfolioUploaded = (trader._count?.portfolioItems || 0) > 0;
+        const stage5Earned = (aboutAdded ? 5 : 0) + (portfolioUploaded ? 5 : 0);
+
+        // 6. 90 - 100%: Upload certificates and/or insurance documents
+        const certificatesUploaded = (trader._count?.certificates || 0) > 0;
+        const insuranceUploaded =
+            (trader._count?.insuranceDocuments || 0) > 0 ||
+            trader.insured ||
+            !!trader.document;
+        const stage6Earned =
+            (certificatesUploaded ? 5 : 0) + (insuranceUploaded ? 5 : 0);
+
+        // TOTAL PROFILE COMPLETION PERCENTAGE
+        const profileCompletionPercentage = Math.min(
+            100,
+            stage1Earned +
+            stage2Earned +
+            stage3Earned +
+            stage4Earned +
+            stage5Earned +
+            stage6Earned,
+        );
+
+        // COMPLETED % (for backward compatibility + updated accuracy)
+        const completedPercentage = profileCompletionPercentage;
+
+        // Profile Completion Details for Frontend UI Rendering
+        const profileCompletion = {
+            overallPercentage: profileCompletionPercentage,
+            stages: [
+                {
+                    id: 'sign_up_complete',
+                    title: 'Sign-up complete',
+                    range: '0 – 25%',
+                    minPercentage: 0,
+                    maxPercentage: 25,
+                    isCompleted: step1Completed,
+                    earnedPercentage: stage1Earned,
+                },
+                {
+                    id: 'complete_dashboard_requirements',
+                    title: 'Complete dashboard requirements (vetting process)',
+                    range: '25 – 50%',
+                    minPercentage: 25,
+                    maxPercentage: 50,
+                    isCompleted: step2Completed,
+                    earnedPercentage: stage2Earned,
+                },
+                {
+                    id: 'approved_by_admin',
+                    title: 'Approved by Admin',
+                    range: '50 – 65%',
+                    minPercentage: 50,
+                    maxPercentage: 65,
+                    isCompleted: trader.verificationStatus === 'APPROVED',
+                    earnedPercentage: stage3Earned,
+                },
+                {
+                    id: 'activate_profile',
+                    title: 'Activate your profile (subscription & payment setup)',
+                    range: '65 – 80%',
+                    minPercentage: 65,
+                    maxPercentage: 80,
+                    isCompleted: stage4Earned === 15,
+                    earnedPercentage: stage4Earned,
+                },
+                {
+                    id: 'about_and_portfolio',
+                    title: 'Add About & upload job portfolio (photos / videos of your work)',
+                    range: '80 – 90%',
+                    minPercentage: 80,
+                    maxPercentage: 90,
+                    isCompleted: aboutAdded && portfolioUploaded,
+                    earnedPercentage: stage5Earned,
+                    details: {
+                        aboutAdded,
+                        portfolioUploaded,
+                    },
+                },
+                {
+                    id: 'certificates_and_insurance',
+                    title: 'Upload certificates and/or insurance documents',
+                    range: '90 – 100%',
+                    minPercentage: 90,
+                    maxPercentage: 100,
+                    isCompleted: certificatesUploaded && insuranceUploaded,
+                    earnedPercentage: stage6Earned,
+                    details: {
+                        certificatesUploaded,
+                        insuranceUploaded,
+                    },
+                },
+            ],
+        };
 
         // NEW
 
@@ -1007,6 +1155,10 @@ export class AuthService {
             completedSteps,
 
             completedPercentage,
+
+            profileCompletionPercentage,
+
+            profileCompletion,
 
             isRegistrationCompleted:
                 trader.isRegistrationCompleted,

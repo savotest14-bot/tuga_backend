@@ -158,4 +158,24 @@ export class TraderRegisterStep2Dto {
   @IsOptional()
   @IsBoolean()
   acceptedTermsConditions?: boolean;
+
+  @ApiPropertyOptional({
+    type: 'array',
+    items: {
+      type: 'string',
+      format: 'binary',
+    },
+  })
+  @IsOptional()
+  certificates?: any[];
+
+  @ApiPropertyOptional({
+    type: 'array',
+    items: {
+      type: 'string',
+      format: 'binary',
+    },
+  })
+  @IsOptional()
+  insuranceDocuments?: any[];
 }
