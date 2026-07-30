@@ -2330,14 +2330,6 @@ export class AuthService {
             );
         }
 
-        const plan = trader.subscription?.plan;
-
-        if (!plan) {
-            throw new BadRequestException(
-                'Subscription plan not found',
-            );
-        }
-
         const imageFiles =
             files?.portfolioImages ?? [];
 
@@ -2354,38 +2346,54 @@ export class AuthService {
             imageFiles.length +
             videoFiles.length;
 
-        const currentPortfolioCount =
-            trader.portfolioItems.length;
-
         /*
         |--------------------------------------------------------------------------
-        | PORTFOLIO LIMIT
+        | CHECK SUBSCRIPTION & LIMITS (ONLY FOR PORTFOLIO IMAGES / VIDEOS)
         |--------------------------------------------------------------------------
         */
 
-        if (
-            currentPortfolioCount +
-            newPortfolioCount >
-            plan.maxPortfolioUploads
-        ) {
-            throw new BadRequestException(
-                `Your ${plan.name} plan allows only ${plan.maxPortfolioUploads} portfolio uploads`,
-            );
-        }
+        if (newPortfolioCount > 0) {
+            const plan = trader.subscription?.plan;
 
-        /*
-        |--------------------------------------------------------------------------
-        | VIDEO VALIDATION
-        |--------------------------------------------------------------------------
-        */
+            if (!plan) {
+                throw new BadRequestException(
+                    'Subscription plan not found',
+                );
+            }
 
-        if (
-            videoFiles.length > 0 &&
-            !plan.allowPortfolioVideos
-        ) {
-            throw new BadRequestException(
-                `Video uploads are not allowed in ${plan.name} plan`,
-            );
+            const currentPortfolioCount =
+                trader.portfolioItems.length;
+
+            /*
+            |--------------------------------------------------------------------------
+            | PORTFOLIO LIMIT
+            |--------------------------------------------------------------------------
+            */
+
+            if (
+                currentPortfolioCount +
+                newPortfolioCount >
+                plan.maxPortfolioUploads
+            ) {
+                throw new BadRequestException(
+                    `Your ${plan.name} plan allows only ${plan.maxPortfolioUploads} portfolio uploads`,
+                );
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | VIDEO VALIDATION
+            |--------------------------------------------------------------------------
+            */
+
+            if (
+                videoFiles.length > 0 &&
+                !plan.allowPortfolioVideos
+            ) {
+                throw new BadRequestException(
+                    `Video uploads are not allowed in ${plan.name} plan`,
+                );
+            }
         }
 
         /*
