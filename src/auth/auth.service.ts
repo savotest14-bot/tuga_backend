@@ -670,8 +670,14 @@ export class AuthService {
                     planId:
                         plan.id,
 
+                    currentPlanId:
+                        plan.id,
+
                     priceId:
                         price.id,
+
+                    billingCycle:
+                        price.billingCycle,
 
                     /*
                     |--------------------------------------------------------------------------
@@ -697,6 +703,9 @@ export class AuthService {
                     trialEndDate:
                         trialEndDate,
 
+                    trialEndsAt:
+                        trialEndDate,
+
                     /*
                     |--------------------------------------------------------------------------
                     | SUBSCRIPTION DATES
@@ -708,38 +717,81 @@ export class AuthService {
 
                     endDate:
                         subscriptionEndDate,
+
+                    currentPeriodStart:
+                        subscriptionStartDate,
+
+                    currentPeriodEnd:
+                        subscriptionEndDate,
+
+                    nextBillingAmount:
+                        price.amount,
+
+                    lastChargedAmount:
+                        isTrial ? 0 : price.amount,
+
+                    lastPlanChangeAt:
+                        now,
                 },
             });
 
         /*
         |--------------------------------------------------------------------------
-        | CREATE PAYMENT
+        | CREATE PAYMENT (ONLY IF NOT IN TRIAL)
         |--------------------------------------------------------------------------
         */
 
-        await this.prisma.subscriptionPayment.create({
-            data: {
-                subscriptionId:
-                    subscription.id,
+        if (!isTrial) {
+            await this.prisma.subscriptionPayment.create({
+                data: {
+                    subscriptionId:
+                        subscription.id,
 
-                amount:
-                    price.amount,
+                    amount:
+                        price.amount,
 
-                currency:
-                    price.currency,
+                    currency:
+                        price.currency,
 
-                status: 'SUCCESS',
+                    status: 'SUCCESS',
 
-                paymentProvider:
-                    'STRIPE',
+                    paymentProvider:
+                        'STRIPE',
 
-                transactionId:
-                    `txn_${Date.now()}`,
+                    transactionId:
+                        `txn_${Date.now()}`,
 
-                paidAt:
-                    now,
-            },
-        });
+                    paidAt:
+                        now,
+                },
+            });
+
+            await this.prisma.subscriptionHistory.create({
+                data: {
+                    subscriptionId:
+                        subscription.id,
+
+                    fromPlanId: null,
+
+                    toPlanId:
+                        plan.id,
+
+                    action:
+                        'INITIAL_PURCHASE',
+
+                    amount:
+                        price.amount,
+
+                    proratedAmount: 0,
+
+                    billingCycle:
+                        price.billingCycle,
+
+                    effectiveDate:
+                        now,
+                },
+            });
+        }
 
         /*
         |--------------------------------------------------------------------------

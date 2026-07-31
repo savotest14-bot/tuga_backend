@@ -430,6 +430,10 @@ model SubscriptionPlan {
   prices SubscriptionPrice[]
 
   subscriptions Subscription[]
+  currentSubscriptions Subscription[] @relation("CurrentSubscriptionPlan")
+  pendingSubscriptions Subscription[] @relation("PendingSubscriptionPlan")
+  historyFromPlans SubscriptionHistory[] @relation("FromPlanHistory")
+  historyToPlans SubscriptionHistory[] @relation("ToPlanHistory")
 }
 
 model SubscriptionPrice {
@@ -467,20 +471,30 @@ model Subscription {
   traderProfileId String @unique
 
   planId String
+  currentPlanId String?
+  pendingPlanId String?
 
   priceId String
+
+  billingCycle BillingCycle @default(MONTHLY)
 
   status SubscriptionStatus @default(TRIAL)
 
   isTrial Boolean @default(false)
 
   trialStartDate DateTime?
-
   trialEndDate DateTime?
+  trialEndsAt DateTime?
 
   startDate DateTime
-
   endDate DateTime?
+
+  currentPeriodStart DateTime?
+  currentPeriodEnd DateTime?
+
+  nextBillingAmount Decimal? @db.Decimal(10, 2)
+  lastChargedAmount Decimal? @db.Decimal(10, 2)
+  lastPlanChangeAt DateTime?
 
   cancelledAt DateTime?
 
@@ -502,13 +516,42 @@ model Subscription {
   traderProfile TraderProfile @relation(fields: [traderProfileId], references: [id], onDelete: Cascade)
 
   plan SubscriptionPlan @relation(fields: [planId], references: [id])
+  currentPlan SubscriptionPlan? @relation("CurrentSubscriptionPlan", fields: [currentPlanId], references: [id])
+  pendingPlan SubscriptionPlan? @relation("PendingSubscriptionPlan", fields: [pendingPlanId], references: [id])
 
   price SubscriptionPrice @relation(fields: [priceId], references: [id])
 
   payments SubscriptionPayment[]
+  history SubscriptionHistory[]
 
   @@index([status])
   @@index([traderProfileId])
+}
+
+model SubscriptionHistory {
+  id String @id @default(uuid())
+
+  subscriptionId String
+  subscription Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  fromPlanId String?
+  fromPlan SubscriptionPlan? @relation("FromPlanHistory", fields: [fromPlanId], references: [id])
+
+  toPlanId String
+  toPlan SubscriptionPlan @relation("ToPlanHistory", fields: [toPlanId], references: [id])
+
+  action String
+
+  amount Decimal @db.Decimal(10, 2) @default(0)
+  proratedAmount Decimal? @db.Decimal(10, 2)
+
+  billingCycle BillingCycle
+
+  effectiveDate DateTime @default(now())
+
+  createdAt DateTime @default(now())
+
+  @@index([subscriptionId])
 }
 
 model SubscriptionPayment {

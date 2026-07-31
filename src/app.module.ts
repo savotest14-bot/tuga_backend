@@ -46,6 +46,7 @@ import { ReportModule } from './modules/report/report.module';
 import { FaqModule } from './modules/faq/faq.module';
 import { ViolationKeywordSeeder } from './common/seeder/violation-keyword.seeder';
 import { ModerationModule } from './modules/moderation/moderation.module';
+import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
 
 @Module({
   imports: [
@@ -81,6 +82,8 @@ import { ModerationModule } from './modules/moderation/moderation.module';
     MasterModule,
 
     PlansModule,
+
+    SubscriptionsModule,
 
     MailModule,
 
