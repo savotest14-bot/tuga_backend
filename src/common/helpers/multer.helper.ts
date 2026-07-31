@@ -13,7 +13,23 @@ export const multerOptions = (
 ) => {
   return {
     storage: diskStorage({
-      destination: `./uploads/${folder}`,
+      destination: (
+        req,
+        file,
+        callback,
+      ) => {
+        let destFolder = folder;
+        if (
+          file.fieldname === 'certificates' ||
+          file.fieldname === 'insuranceDocuments' ||
+          file.fieldname === 'portfolioImages' ||
+          file.fieldname === 'portfolioVideos'
+        ) {
+          destFolder = 'portfolio';
+        }
+        callback(null, `./uploads/${destFolder}`);
+      },
+
 
       filename: (
         req,

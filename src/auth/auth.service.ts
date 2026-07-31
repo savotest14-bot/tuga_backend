@@ -329,7 +329,7 @@ export class AuthService {
             await this.prisma.traderCertificate.createMany({
                 data: certificateFiles.map((file) => ({
                     traderProfileId: trader.id,
-                    fileUrl: `/uploads/traders/${file.filename}`,
+                    fileUrl: `/uploads/portfolio/${file.filename}`,
                 })),
             });
         }
@@ -338,7 +338,7 @@ export class AuthService {
             await this.prisma.traderInsuranceDocument.createMany({
                 data: insuranceFiles.map((file) => ({
                     traderProfileId: trader.id,
-                    fileUrl: `/uploads/traders/${file.filename}`,
+                    fileUrl: `/uploads/portfolio/${file.filename}`,
                 })),
             });
         }
@@ -2064,6 +2064,8 @@ export class AuthService {
             profileImage?: Express.Multer.File[];
             logo?: Express.Multer.File[];
             document?: Express.Multer.File[];
+            certificates?: Express.Multer.File[];
+            insuranceDocuments?: Express.Multer.File[];
         },
     ) {
         try {
@@ -2137,6 +2139,10 @@ export class AuthService {
                 document = `/uploads/traders/${files.document[0].filename}`;
                 documentChanged = true;
             }
+
+            const certificateFiles = files?.certificates ?? [];
+            const insuranceFiles = files?.insuranceDocuments ?? [];
+
 
             /* ===================== USER UPDATE DATA ===================== */
             const updateUserData: Prisma.UserUpdateInput = {};
@@ -2299,6 +2305,24 @@ export class AuthService {
                         where: { userId },
                         data: traderData,
                     });
+
+                    if (certificateFiles.length && traderProfile) {
+                        await tx.traderCertificate.createMany({
+                            data: certificateFiles.map((file) => ({
+                                traderProfileId: traderProfile.id,
+                                fileUrl: `/uploads/portfolio/${file.filename}`,
+                            })),
+                        });
+                    }
+
+                    if (insuranceFiles.length && traderProfile) {
+                        await tx.traderInsuranceDocument.createMany({
+                            data: insuranceFiles.map((file) => ({
+                                traderProfileId: traderProfile.id,
+                                fileUrl: `/uploads/portfolio/${file.filename}`,
+                            })),
+                        });
+                    }
                 }
             });
 

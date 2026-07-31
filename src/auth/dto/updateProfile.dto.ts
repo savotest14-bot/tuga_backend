@@ -16,6 +16,7 @@ import {
   Transform,
   Type,
 } from 'class-transformer';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 
 /*
 |--------------------------------------------------------------------------
@@ -150,4 +151,24 @@ export class UpdateProfileDto {
   @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)
   @IsString()
   about?: string;
+
+  @ApiPropertyOptional({
+    type: 'array',
+    items: {
+      type: 'string',
+      format: 'binary',
+    },
+  })
+  @IsOptional()
+  certificates?: any[];
+
+  @ApiPropertyOptional({
+    type: 'array',
+    items: {
+      type: 'string',
+      format: 'binary',
+    },
+  })
+  @IsOptional()
+  insuranceDocuments?: any[];
 }

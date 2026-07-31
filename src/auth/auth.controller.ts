@@ -401,6 +401,22 @@ export class AuthController {
           type: 'string',
           format: 'binary',
         },
+
+        certificates: {
+          type: 'array',
+          items: {
+            type: 'string',
+            format: 'binary',
+          },
+        },
+
+        insuranceDocuments: {
+          type: 'array',
+          items: {
+            type: 'string',
+            format: 'binary',
+          },
+        },
       },
     },
   })
@@ -419,6 +435,14 @@ export class AuthController {
           name: 'document',
           maxCount: 1,
         },
+        {
+          name: 'certificates',
+          maxCount: 5,
+        },
+        {
+          name: 'insuranceDocuments',
+          maxCount: 5,
+        },
       ],
       multerOptions('traders'),
     ),
@@ -435,6 +459,8 @@ export class AuthController {
       profileImage?: Express.Multer.File[];
       logo?: Express.Multer.File[];
       document?: Express.Multer.File[];
+      certificates?: Express.Multer.File[];
+      insuranceDocuments?: Express.Multer.File[];
     },
   ) {
     return this.authService.updateProfile(
@@ -443,6 +469,7 @@ export class AuthController {
       files,
     );
   }
+
 
   @ApiBearerAuth('access-token')
   @UseInterceptors(
