@@ -5,8 +5,15 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RedisService } from '../../redis/redis.service';
-import { BillingCycle, SubscriptionStatus } from '@prisma/client';
+import { BillingCycle, SubscriptionStatus, SubscriptionTier } from '@prisma/client';
 import { ChangePlanDto } from './dto/change-plan.dto';
+import { randomUUID } from 'crypto';
+
+const TIER_RANK: Record<SubscriptionTier, number> = {
+  BRONZE: 1,
+  SILVER: 2,
+  GOLD: 3,
+};
 
 @Injectable()
 export class SubscriptionsService {
@@ -63,13 +70,21 @@ export class SubscriptionsService {
       throw new BadRequestException('Invalid or inactive plan selected');
     }
 
+    const targetBillingCycle = dto.billingCycle || subscription.billingCycle;
+
     const currentPlanId =
       subscription.currentPlanId || subscription.planId;
     const currentPlan =
       subscription.currentPlan || subscription.plan;
 
-    // Check if target plan is the same as current active plan
-    if (currentPlanId === targetPlan.id) {
+    const currentRank = TIER_RANK[currentPlan.name] || 0;
+    const targetRank = TIER_RANK[targetPlan.name] || 0;
+
+    const isTierChanging = currentPlanId !== targetPlan.id;
+    const isCycleChanging = subscription.billingCycle !== targetBillingCycle;
+
+    // Check if user is attempting to select identical plan and billing cycle
+    if (!isTierChanging && !isCycleChanging) {
       // If user had any pending downgrade/change and is now staying on current plan, clear pending
       if (subscription.pendingPlanId) {
         await this.prisma.subscription.update({
@@ -97,8 +112,8 @@ export class SubscriptionsService {
       );
     }
 
-    // Check if target plan is already scheduled as pending plan
-    if (subscription.pendingPlanId === targetPlan.id) {
+    // Check if target plan is already scheduled as pending plan (if same billing cycle)
+    if (subscription.pendingPlanId === targetPlan.id && !isCycleChanging) {
       return {
         success: true,
         message: 'This plan is already scheduled as your pending downgrade.',
@@ -114,14 +129,14 @@ export class SubscriptionsService {
       };
     }
 
-    // Determine target price for current billing cycle
+    // Determine target price for selected billing cycle
     const targetPrice = targetPlan.prices.find(
-      (p) => p.billingCycle === subscription.billingCycle,
+      (p) => p.billingCycle === targetBillingCycle,
     );
 
     if (!targetPrice) {
       throw new BadRequestException(
-        `No active price available for this plan under ${subscription.billingCycle} billing cycle`,
+        `No active price available for this plan under ${targetBillingCycle} billing cycle`,
       );
     }
 
@@ -133,7 +148,7 @@ export class SubscriptionsService {
 
     /*
     |--------------------------------------------------------------------------
-    | TRIAL MODE: FREE UNLIMITED SWITCHING
+    | TRIAL MODE: FREE UNLIMITED SWITCHING (NO PAYMENTS, NO HISTORY)
     |--------------------------------------------------------------------------
     */
     if (isTrial) {
@@ -144,6 +159,7 @@ export class SubscriptionsService {
             currentPlanId: targetPlan.id,
             planId: targetPlan.id,
             priceId: targetPrice.id,
+            billingCycle: targetBillingCycle,
             pendingPlanId: null,
             lastPlanChangeAt: now,
           },
@@ -178,7 +194,7 @@ export class SubscriptionsService {
 
     /*
     |--------------------------------------------------------------------------
-    | POST-TRIAL MODE: UPGRADE OR DOWNGRADE
+    | POST-TRIAL MODE: UPGRADE, BILLING CYCLE SWITCH, OR DOWNGRADE
     |--------------------------------------------------------------------------
     */
     const currentPriceAmount = Number(subscription.price?.amount || 0);
@@ -187,7 +203,6 @@ export class SubscriptionsService {
     const currentPeriodStart =
       subscription.currentPeriodStart || subscription.startDate || now;
 
-    // Fallback currentPeriodEnd if missing
     let currentPeriodEnd =
       subscription.currentPeriodEnd || subscription.endDate;
     if (!currentPeriodEnd) {
@@ -199,26 +214,57 @@ export class SubscriptionsService {
       }
     }
 
-    // UPGRADE: New Price > Old Price
-    if (targetPriceAmount > currentPriceAmount) {
-      const remainingMs = currentPeriodEnd.getTime() - now.getTime();
-      const remainingDays = Math.max(0, remainingMs / (1000 * 60 * 60 * 24));
+    // Determine if operation is an Upgrade/Cycle Change or a Downgrade
+    const isUpgradeOrCycleSwitch =
+      targetRank > currentRank || (!isTierChanging && isCycleChanging);
 
+    if (isUpgradeOrCycleSwitch) {
       let proratedAmount = 0;
-      const priceDiff = targetPriceAmount - currentPriceAmount;
 
-      if (subscription.billingCycle === BillingCycle.MONTHLY) {
-        const totalMs = currentPeriodEnd.getTime() - currentPeriodStart.getTime();
-        const totalDays = Math.max(1, totalMs / (1000 * 60 * 60 * 24));
-        proratedAmount = priceDiff * (remainingDays / totalDays);
+      if (isCycleChanging && !isTierChanging) {
+        // Billing cycle switch on same plan
+        proratedAmount = targetPriceAmount;
       } else {
-        // YEARLY
-        proratedAmount = priceDiff * (remainingDays / 365);
+        // Tier upgrade
+        const priceDiff = targetPriceAmount - currentPriceAmount;
+
+        if (priceDiff > 0) {
+          const remainingMs = currentPeriodEnd.getTime() - now.getTime();
+          const remainingDays = Math.max(0, remainingMs / (1000 * 60 * 60 * 24));
+
+          if (subscription.billingCycle === BillingCycle.MONTHLY) {
+            const totalMs = currentPeriodEnd.getTime() - currentPeriodStart.getTime();
+            const totalDays = Math.max(1, totalMs / (1000 * 60 * 60 * 24));
+            proratedAmount = priceDiff * (remainingDays / totalDays);
+          } else {
+            // YEARLY
+            proratedAmount = priceDiff * (remainingDays / 365);
+          }
+          proratedAmount = Math.round(proratedAmount * 100) / 100;
+        } else {
+          proratedAmount = Math.round(targetPriceAmount * 100) / 100;
+        }
       }
 
-      proratedAmount = Math.round(proratedAmount * 100) / 100;
+      // Calculate new period dates if billing cycle changed
+      let newPeriodStart = currentPeriodStart;
+      let newPeriodEnd = currentPeriodEnd;
+
+      if (isCycleChanging) {
+        newPeriodStart = now;
+        newPeriodEnd = new Date(now);
+        if (targetBillingCycle === BillingCycle.MONTHLY) {
+          newPeriodEnd.setMonth(newPeriodEnd.getMonth() + 1);
+        } else {
+          newPeriodEnd.setFullYear(newPeriodEnd.getFullYear() + 1);
+        }
+      }
+
+      const action = isCycleChanging && !isTierChanging ? 'BILLING_CYCLE_CHANGE' : 'UPGRADE';
 
       const updatedSub = await this.prisma.$transaction(async (tx) => {
+        const txnId = `txn_upg_${Date.now()}_${randomUUID().substring(0, 8)}`;
+
         // Create Payment
         await tx.subscriptionPayment.create({
           data: {
@@ -227,7 +273,7 @@ export class SubscriptionsService {
             currency: targetPrice.currency || 'EUR',
             status: 'SUCCESS',
             paymentProvider: 'STRIPE',
-            transactionId: `txn_upg_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+            transactionId: txnId,
             paidAt: now,
           },
         });
@@ -238,25 +284,32 @@ export class SubscriptionsService {
             subscriptionId: subscription.id,
             fromPlanId: currentPlanId,
             toPlanId: targetPlan.id,
-            action: 'UPGRADE',
+            action,
             amount: proratedAmount,
             proratedAmount: proratedAmount,
-            billingCycle: subscription.billingCycle,
+            billingCycle: targetBillingCycle,
             effectiveDate: now,
           },
         });
 
-        // Update Subscription (Keep same currentPeriodEnd!)
+        // Update Subscription
         const sub = await tx.subscription.update({
           where: { id: subscription.id },
           data: {
             currentPlanId: targetPlan.id,
             planId: targetPlan.id,
             priceId: targetPrice.id,
+            billingCycle: targetBillingCycle,
             pendingPlanId: null,
             lastChargedAmount: proratedAmount,
             nextBillingAmount: targetPrice.amount,
             lastPlanChangeAt: now,
+            ...(isCycleChanging ? {
+              currentPeriodStart: newPeriodStart,
+              currentPeriodEnd: newPeriodEnd,
+              startDate: newPeriodStart,
+              endDate: newPeriodEnd,
+            } : {}),
           },
           include: {
             currentPlan: true,
@@ -269,26 +322,34 @@ export class SubscriptionsService {
           where: { id: traderProfile.id },
           data: {
             subscriptionTier: targetPlan.name,
+            ...(isCycleChanging ? {
+              subscriptionStartDate: newPeriodStart,
+              subscriptionEndDate: newPeriodEnd,
+            } : {}),
           },
         });
 
         return sub;
       });
 
+      const message = isCycleChanging && !isTierChanging
+        ? 'Billing cycle updated successfully'
+        : 'Subscription upgraded successfully';
+
       return {
         success: true,
-        message: 'Subscription upgraded successfully',
+        message,
         data: {
           currentPlan: updatedSub.currentPlan || targetPlan,
           pendingPlan: null,
           trial: false,
           proratedAmount,
-          effectiveDate: currentPeriodEnd,
+          effectiveDate: newPeriodEnd,
         },
       };
     }
 
-    // DOWNGRADE: New Price < Old Price (or equal with different plan)
+    // DOWNGRADE: targetRank < currentRank
     await this.prisma.$transaction(async (tx) => {
       await tx.subscription.update({
         where: { id: subscription.id },
@@ -306,7 +367,7 @@ export class SubscriptionsService {
           action: 'DOWNGRADE_SCHEDULED',
           amount: 0,
           proratedAmount: 0,
-          billingCycle: subscription.billingCycle,
+          billingCycle: targetBillingCycle,
           effectiveDate: currentPeriodEnd,
         },
       });
@@ -402,6 +463,15 @@ export class SubscriptionsService {
       sub.status === SubscriptionStatus.TRIAL ||
       (sub.trialEndsAt && now < sub.trialEndsAt);
 
+    // During trial, currentPeriodStart should reflect when the trial began (or start date)
+    const currentPeriodStart = isTrial
+      ? sub.trialStartDate || sub.startDate || now
+      : sub.currentPeriodStart || sub.startDate;
+
+    const currentPeriodEnd = isTrial
+      ? sub.trialEndsAt || sub.trialEndDate || sub.endDate
+      : sub.currentPeriodEnd || sub.endDate;
+
     return {
       success: true,
       message: 'Subscription retrieved successfully',
@@ -410,8 +480,8 @@ export class SubscriptionsService {
         pendingPlan: sub.pendingPlan || null,
         trial: isTrial,
         trialEndsAt: sub.trialEndsAt || sub.trialEndDate,
-        currentPeriodStart: sub.currentPeriodStart || sub.startDate,
-        currentPeriodEnd: sub.currentPeriodEnd || sub.endDate,
+        currentPeriodStart,
+        currentPeriodEnd,
         billingCycle: sub.billingCycle,
         status: sub.status,
         lastChargedAmount: sub.lastChargedAmount,
@@ -427,6 +497,19 @@ export class SubscriptionsService {
   |--------------------------------------------------------------------------
   */
   async processRenewals() {
+    const lockKey = 'lock:process-renewals';
+    // Optional Redis lock to prevent duplicate execution across workers
+    try {
+      if (this.redisService) {
+        const acquired = await this.redisService.set(lockKey, '1', 300);
+        if (acquired === null) {
+          return { success: true, message: 'Renewal processing locked', data: { processedCount: 0 } };
+        }
+      }
+    } catch (_) {
+      // Continue if Redis is unavailable
+    }
+
     const now = new Date();
 
     const dueSubscriptions = await this.prisma.subscription.findMany({
@@ -506,6 +589,8 @@ export class SubscriptionsService {
           ? 'DOWNGRADE_APPLIED'
           : 'RENEWAL';
 
+        const txnId = `txn_ren_${Date.now()}_${randomUUID().substring(0, 8)}`;
+
         await this.prisma.$transaction(async (tx) => {
           // Payment record
           await tx.subscriptionPayment.create({
@@ -515,7 +600,7 @@ export class SubscriptionsService {
               currency: targetPrice.currency || 'EUR',
               status: 'SUCCESS',
               paymentProvider: 'STRIPE',
-              transactionId: `txn_ren_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+              transactionId: txnId,
               paidAt: now,
             },
           });

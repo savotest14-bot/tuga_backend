@@ -1324,6 +1324,15 @@ export class AuthService {
             }
 
             if (
+                subscription.status !== 'ACTIVE' &&
+                subscription.status !== 'TRIAL'
+            ) {
+                throw new BadRequestException(
+                    `Subscription feature blocked. Your subscription status is ${subscription.status}.`,
+                );
+            }
+
+            if (
                 !subscription.plan.unlimitedTrades &&
                 tradeCategories.length >
                 subscription.plan.maxTrades
@@ -2212,6 +2221,15 @@ export class AuthService {
                             );
                         }
 
+                        if (
+                            subscription.status !== 'ACTIVE' &&
+                            subscription.status !== 'TRIAL'
+                        ) {
+                            throw new BadRequestException(
+                                `Subscription feature blocked. Your subscription status is ${subscription.status}.`,
+                            );
+                        }
+
                         const selectedTrades =
                             body.tradeCategories
                                 ? [...new Set(body.tradeCategories)]
@@ -2429,11 +2447,21 @@ export class AuthService {
         */
 
         if (newPortfolioCount > 0) {
-            const plan = trader.subscription?.plan;
+            const subscription = trader.subscription;
+            const plan = subscription?.plan;
 
-            if (!plan) {
+            if (!plan || !subscription) {
                 throw new BadRequestException(
                     'Subscription plan not found',
+                );
+            }
+
+            if (
+                subscription.status !== 'ACTIVE' &&
+                subscription.status !== 'TRIAL'
+            ) {
+                throw new BadRequestException(
+                    `Subscription feature blocked. Your subscription status is ${subscription.status}.`,
                 );
             }
 

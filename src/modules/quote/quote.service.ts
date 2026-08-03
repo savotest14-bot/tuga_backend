@@ -434,8 +434,17 @@ export class QuoteService {
                         );
                     }
 
+                    if (
+                        traderProfile.subscription.status !== 'ACTIVE' &&
+                        traderProfile.subscription.status !== 'TRIAL'
+                    ) {
+                        throw new BadRequestException(
+                            `Subscription feature blocked. Your subscription status is ${traderProfile.subscription.status}.`,
+                        );
+                    }
+
                     const startOfDay = new Date();
-                    startOfDay.setHours(
+                    startOfDay.setUTCHours(
                         0,
                         0,
                         0,
@@ -443,7 +452,7 @@ export class QuoteService {
                     );
 
                     const endOfDay = new Date();
-                    endOfDay.setHours(
+                    endOfDay.setUTCHours(
                         23,
                         59,
                         59,

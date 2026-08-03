@@ -83,10 +83,10 @@ export class AuthController {
           example:
             'Professional plumbing services',
         },
-        location: {
-          type: 'string',
-          example: 'Dubai Marina',
-        },
+        // location: {
+        //   type: 'string',
+        //   example: 'Dubai Marina',
+        // },
         minimumExperience: {
           type: 'boolean',
           example: true,
