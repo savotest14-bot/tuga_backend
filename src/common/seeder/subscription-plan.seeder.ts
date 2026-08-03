@@ -2,13 +2,15 @@ import { Injectable, OnModuleInit } from '@nestjs/common';
 
 import { PrismaService } from '../../prisma/prisma.service';
 
+import { RedisService } from '../../redis/redis.service';
+
 @Injectable()
 export class SubscriptionPlanSeeder
-  implements OnModuleInit
-{
+  implements OnModuleInit {
   constructor(
     private readonly prisma: PrismaService,
-  ) {}
+    private readonly redisService: RedisService
+  ) { }
 
   async onModuleInit() {
     await this.seedPlans();
@@ -280,10 +282,12 @@ export class SubscriptionPlanSeeder
         },
       });
     }
-
+    await this.redisService.del(
+      'subscription:plans',
+    );
     console.log(
       '✅ Subscription plans seeded successfully',
     );
   }
-  
+
 }
