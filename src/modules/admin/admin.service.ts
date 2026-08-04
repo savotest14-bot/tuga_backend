@@ -2401,20 +2401,8 @@ export class AdminService {
                 FROM "User" u
                 INNER JOIN "TraderProfile" tp ON tp."userId" = u.id
                 LEFT JOIN "TraderMetrics" tm ON tm."traderId" = u.id
-                LEFT JOIN "Subscription" s
-                ON s."traderProfileId" = tp.id
-                LEFT JOIN "SubscriptionPlan" sp
-                ON sp.id = s."planId"
                 ${whereClause}
-                ORDER BY
-                COALESCE(sp."featuredAtTop", false) DESC,
-        
-                CASE
-                  WHEN sp."exposureLevel" = 'MAXIMUM' THEN 3
-                  WHEN sp."exposureLevel" = 'INCREASED' THEN 2
-                  ELSE 1
-                END DESC,
-        
+                ORDER BY        
                "finalScore" DESC,
         
                 COALESCE(tm."totalReviews", 0) DESC,

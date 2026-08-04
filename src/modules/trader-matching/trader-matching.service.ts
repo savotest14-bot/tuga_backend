@@ -133,20 +133,8 @@ export class TraderMatchingService {
         FROM "User" u
         INNER JOIN "TraderProfile" tp ON tp."userId" = u.id
         LEFT JOIN "TraderMetrics" tm ON tm."traderId" = u.id
-        LEFT JOIN "Subscription" s
-        ON s."traderProfileId" = tp.id
-        LEFT JOIN "SubscriptionPlan" sp
-        ON sp.id = s."planId"
         ${whereClause}
         ORDER BY
-        COALESCE(sp."featuredAtTop", false) DESC,
-
-        CASE
-          WHEN sp."exposureLevel" = 'MAXIMUM' THEN 3
-          WHEN sp."exposureLevel" = 'INCREASED' THEN 2
-          ELSE 1
-        END DESC,
-
        "finalScore" DESC,
 
         COALESCE(tm."totalReviews", 0) DESC,
@@ -156,7 +144,7 @@ export class TraderMatchingService {
        "distanceKm" ASC
         LIMIT 5
         `
-      );
+    );
 
     if (scoredTraders.length === 0) {
       this.logger.log(`No matching traders found within ${job.currentRadiusKm}km for job ${jobId}`);
