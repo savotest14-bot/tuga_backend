@@ -23,6 +23,7 @@ import {
 import type { Request } from 'express';
 
 import { CreateQuoteDto } from './dto/create-quote.dto';
+import { UpdateQuoteDto } from './dto/update-quote.dto';
 
 import { QuoteService } from './quote.service';
 import { GetMyQuotesDto } from './dto/get-my-quote.dto';
@@ -112,6 +113,85 @@ export class QuoteController {
             quoteId,
         );
     }
+
+    /*
+    |--------------------------------------------------------------------------
+    | REJECT QUOTE
+    |--------------------------------------------------------------------------
+    */
+
+    @Post('reject/:quoteId')
+    @ApiBearerAuth('access-token')
+    async rejectQuote(
+        @Req() req: Request,
+
+        @Param('quoteId', ParseUUIDPipe)
+        quoteId: string,
+    ) {
+
+        return this.quoteService.rejectQuote(
+            req['user'].id,
+            quoteId,
+        );
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | UPDATE QUOTE
+    |--------------------------------------------------------------------------
+    */
+
+    @Post('update/:quoteId')
+    @ApiBearerAuth('access-token')
+    @ApiConsumes('multipart/form-data')
+    @ApiBody({
+        schema: {
+            type: 'object',
+            properties: {
+                price: { type: 'number', nullable: true },
+                estimatedDays: { type: 'number', nullable: true },
+                message: { type: 'string', nullable: true },
+                attachments: {
+                    type: 'array',
+                    items: { type: 'string', format: 'binary' },
+                },
+            },
+        },
+    })
+    @UseInterceptors(
+        FileFieldsInterceptor(
+            [
+                {
+                    name: 'attachments',
+                    maxCount: 10,
+                },
+            ],
+            multerOptions('quotes'),
+        ),
+    )
+    async updateQuote(
+        @Req() req: Request,
+
+        @Param('quoteId', ParseUUIDPipe)
+        quoteId: string,
+
+        @Body()
+        dto: UpdateQuoteDto,
+
+        @UploadedFiles()
+        files: { attachments?: Express.Multer.File[] },
+    ) {
+
+        return this.quoteService.updateQuote(
+            req['user'].id,
+            quoteId,
+            dto,
+            files?.attachments || [],
+        );
+    }
+
+
 
     @Get('job/:jobId')
     @ApiBearerAuth('access-token')

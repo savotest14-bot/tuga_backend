@@ -15,8 +15,13 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
 
 import { CreateQuoteDto } from './dto/create-quote.dto';
+import { UpdateQuoteDto } from './dto/update-quote.dto';
 import { RedisService } from 'src/redis/redis.service';
 import { GetMyQuotesDto } from './dto/get-my-quote.dto';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
+import * as fs from 'fs/promises';
+import * as path from 'path';
 
 @Injectable()
 export class QuoteService {
@@ -27,6 +32,7 @@ export class QuoteService {
         private readonly prisma: PrismaService,
         private readonly notificationService: NotificationService,
         private redisService: RedisService,
+        @InjectQueue('matching') private readonly matchingQueue: Queue,
     ) { }
 
 
@@ -1038,6 +1044,300 @@ export class QuoteService {
         return {
             message:
                 'Trader selected successfully',
+        };
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | REJECT QUOTE
+    |--------------------------------------------------------------------------
+    */
+    async rejectQuote(
+        customerId: string,
+        quoteId: string,
+    ) {
+        /*
+        |--------------------------------------------------------------------------
+        | FIND QUOTE
+        |--------------------------------------------------------------------------
+        */
+        const quote =
+            await this.prisma.quote.findUnique({
+                where: {
+                    id: quoteId,
+                },
+                include: {
+                    job: true,
+                    trader: true,
+                },
+            });
+
+        if (!quote) {
+            throw new NotFoundException(
+                'Quote not found',
+            );
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | AUTHORIZATION
+        |--------------------------------------------------------------------------
+        */
+
+        if (quote.job.customerId !== customerId) {
+            throw new BadRequestException(
+                'You are not allowed to reject this quote',
+            );
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | STATUS CHECK
+        |--------------------------------------------------------------------------
+        */
+        if (quote.status !== QuoteStatus.PENDING) {
+            throw new BadRequestException(
+                `Quote is already ${quote.status.toLowerCase()}`,
+            );
+        }
+
+        try {
+            await this.prisma.$transaction(
+                async (tx) => {
+                    /*
+                    |--------------------------------------------------------------------------
+                    | REJECT THIS QUOTE
+                    |--------------------------------------------------------------------------
+                    */
+                    await tx.quote.update({
+                        where: {
+                            id: quoteId,
+                        },
+                        data: {
+                            status: QuoteStatus.REJECTED,
+                        },
+                    });
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | REJECT MATCH
+                    |--------------------------------------------------------------------------
+                    */
+                    await tx.jobTraderMatch.updateMany({
+                        where: {
+                            jobId: quote.jobId,
+                            traderId: quote.traderId,
+                        },
+                        data: {
+                            status: JobMatchStatus.REJECTED,
+                            respondedAt: new Date(),
+                        },
+                    });
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | UPDATE JOB QUOTE COUNT AND STATUS
+                    |--------------------------------------------------------------------------
+                    */
+                    const newQuotesReceived = Math.max(0, quote.job.quotesReceived - 1);
+                    await tx.job.update({
+                        where: {
+                            id: quote.jobId,
+                        },
+                        data: {
+                            quotesReceived: newQuotesReceived,
+                            status: newQuotesReceived === 0 ? JobStatus.POSTED : JobStatus.QUOTE_RECEIVED,
+                        },
+                    });
+                },
+            );
+
+            // Trigger matching queue to search once again for new trader
+            await this.matchingQueue.add('match-job', { jobId: quote.jobId }).catch(err => {
+                this.logger.error(`Failed to add job to matching queue: ${err.message}`);
+            });
+
+            // Notify rejected trader
+            this.notificationService.createNotification(
+                quote.traderId,
+                'Quote Rejected',
+                `Your quote for "${quote.job.title}" has been rejected`,
+                'QUOTE_REJECTED',
+                { jobId: quote.jobId, quoteId: quoteId },
+            ).catch(err => {
+                this.logger.error(`Failed to notify rejected trader: ${err.message}`);
+            });
+
+            // Clear cache for trader
+            await this.redisService.deleteByPattern(
+                `trader:matched-jobs:${quote.traderId}:*`,
+            );
+            await this.redisService.deleteByPattern(
+                `trader:quotes:${quote.traderId}:*`,
+            );
+            await this.redisService.del(
+                `trader:quote:${quote.traderId}:job:${quote.jobId}`,
+            );
+
+            // Clear quotes cache
+            await this.redisService.del(
+                `job:quotes:${quote.jobId}`,
+            );
+            await this.redisService.deleteByPattern(
+                `customer:jobs:${customerId}:*`,
+            );
+            await this.redisService.deleteByPattern(
+                'admin:jobs:*',
+            );
+            await this.redisService.deleteByPattern('admin:quotes:*');
+
+        } catch (error) {
+            this.logger.error(
+                `Failed to reject quote ${quoteId}: ${error.message}`,
+                error.stack,
+            );
+            throw error;
+        }
+
+        return {
+            message: 'Quote rejected successfully',
+        };
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | UPDATE QUOTE
+    |--------------------------------------------------------------------------
+    */
+    async updateQuote(
+        traderId: string,
+        quoteId: string,
+        dto: UpdateQuoteDto,
+        files: Express.Multer.File[],
+    ) {
+        /*
+        |--------------------------------------------------------------------------
+        | FIND QUOTE WITH ATTACHMENTS
+        |--------------------------------------------------------------------------
+        */
+        const quote = await this.prisma.quote.findUnique({
+            where: {
+                id: quoteId,
+            },
+            include: {
+                attachments: true,
+            },
+        });
+
+        if (!quote) {
+            throw new NotFoundException(
+                'Quote not found',
+            );
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | AUTHORIZATION
+        |--------------------------------------------------------------------------
+        */
+        if (quote.traderId !== traderId) {
+            throw new BadRequestException(
+                'You are not allowed to update this quote',
+            );
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | STATUS CHECK
+        |--------------------------------------------------------------------------
+        */
+        if (quote.status !== QuoteStatus.PENDING) {
+            throw new BadRequestException(
+                `Quote is already ${quote.status.toLowerCase()}`,
+            );
+        }
+
+        try {
+            // Delete old attachments if new ones are provided
+            if (files && files.length > 0) {
+                for (const attachment of quote.attachments) {
+                    try {
+                        const filePath = path.join(
+                            process.cwd(),
+                            attachment.file,
+                        );
+                        await fs.unlink(filePath);
+                    } catch (error) {
+                        this.logger.warn(
+                            `Failed to delete file ${attachment.file}: ${error.message}`,
+                        );
+                    }
+                }
+            }
+
+            await this.prisma.$transaction(
+                async (tx) => {
+                    // Update main quote fields
+                    await tx.quote.update({
+                        where: {
+                            id: quoteId,
+                        },
+                        data: {
+                            price: dto.price !== undefined ? dto.price : quote.price,
+                            estimatedDays: dto.estimatedDays !== undefined ? dto.estimatedDays : quote.estimatedDays,
+                            message: dto.message !== undefined ? dto.message : quote.message,
+                        },
+                    });
+
+                    // If new files were provided, delete old attachment db records and create new ones
+                    if (files && files.length > 0) {
+                        await tx.quoteAttachment.deleteMany({
+                            where: {
+                                quoteId: quoteId,
+                            },
+                        });
+
+                        await tx.quoteAttachment.createMany({
+                            data: files.map((file) => ({
+                                quoteId: quoteId,
+                                file: `uploads/quotes/${file.filename}`,
+                                filename: file.originalname,
+                                mimeType: file.mimetype,
+                                size: file.size,
+                            })),
+                        });
+                    }
+                },
+            );
+
+            // Invalidate Redis caches
+            await this.redisService.deleteByPattern(
+                `trader:matched-jobs:${traderId}:*`,
+            );
+            await this.redisService.deleteByPattern(
+                `trader:quotes:${traderId}:*`,
+            );
+            await this.redisService.del(
+                `trader:quote:${traderId}:job:${quote.jobId}`,
+            );
+            await this.redisService.del(
+                `job:quotes:${quote.jobId}`,
+            );
+            await this.redisService.deleteByPattern(
+                'admin:jobs:*',
+            );
+            await this.redisService.deleteByPattern('admin:quotes:*');
+
+        } catch (error) {
+            this.logger.error(
+                `Failed to update quote ${quoteId}: ${error.message}`,
+                error.stack,
+            );
+            throw error;
+        }
+
+        return {
+            message: 'Quote updated successfully',
         };
     }
 

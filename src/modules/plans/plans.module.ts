@@ -32,8 +32,7 @@ import { RedisModule } from 'src/redis/redis.module';
   providers: [PlansService],
 })
 export class PlansModule
-  implements NestModule
-{
+  implements NestModule {
   configure(
     consumer: MiddlewareConsumer,
   ) {
