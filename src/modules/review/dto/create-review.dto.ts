@@ -27,9 +27,12 @@ import {
 
 export class CreateReviewDto {
 
-  @ApiProperty()
+  @ApiPropertyOptional()
+  @ValidateIf(
+    (o) => o.wasWorkCompleted === true,
+  )
   @IsUUID()
-  traderId: string;
+  traderId?: string;
 
   @ApiPropertyOptional()
   @IsOptional()

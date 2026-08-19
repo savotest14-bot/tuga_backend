@@ -14,6 +14,7 @@ import { CreateJobDto } from './dto/create-job.dto';
 import { TraderMatchingService } from '../trader-matching/trader-matching.service';
 import { NotificationService } from '../notification/notification.service';
 import { UpdateJobDto } from './dto/update-job.dto';
+import { CloseJobDto } from './dto/close-job.dto';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { RedisService } from 'src/redis/redis.service';
@@ -1682,6 +1683,7 @@ export class JobService {
     async closeMyJob(
         customerId: string,
         jobId: string,
+        dto: CloseJobDto,
     ) {
         const job = await this.prisma.job.findFirst({
             where: {
@@ -1708,6 +1710,12 @@ export class JobService {
         //     );
         // }
 
+        if (dto.isWorkCarriedOut === false && !dto.cancelReason) {
+            throw new BadRequestException(
+                'Please provide a reason since the work was not carried out',
+            );
+        }
+
         await this.prisma.job.update({
             where: {
                 id: jobId,
@@ -1715,6 +1723,8 @@ export class JobService {
             data: {
                 distributionStatus: 'COMPLETED',
                 status: 'CLOSED',
+                isWorkCarriedOut: dto.isWorkCarriedOut,
+                cancelReason: dto.isWorkCarriedOut ? null : dto.cancelReason,
                 escalationVersion: {
                     increment: 1,
                 },

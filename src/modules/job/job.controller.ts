@@ -32,6 +32,7 @@ import { BudgetRange, JobTimescale } from '@prisma/client';
 import { GetMyJobsDto } from './dto/get-my-job.dto';
 import { GetMatchedJobsDto } from './dto/get-match-job.dto';
 import { IncreaseRadiusDto } from './dto/increase-radius.dto';
+import { CloseJobDto } from './dto/close-job.dto';
 
 @ApiTags('Jobs')
 @Controller('jobs')
@@ -431,11 +432,12 @@ export class JobController {
     async closeMyJob(
         @Req() req: Request,
         @Param('id', ParseUUIDPipe) id: string,
+        @Body() dto: CloseJobDto,
     ) {
         return this.jobService.closeMyJob(
             req['user'].id,
             id,
+            dto,
         );
     }
-
 }

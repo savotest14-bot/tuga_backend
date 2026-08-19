@@ -10,6 +10,8 @@ import {
     ContentType,
 } from '@prisma/client';
 import { ModerationService } from '../moderation/moderation.service';
+import { NotificationService } from '../notification/notification.service';
+import { RedisService } from 'src/redis/redis.service';
 
 @Injectable()
 export class ChatService {
@@ -17,6 +19,8 @@ export class ChatService {
     constructor(
         private prisma: PrismaService,
         private readonly moderationService: ModerationService,
+        private readonly notificationService: NotificationService,
+        private readonly redisService: RedisService,
     ) { }
 
     /*
@@ -81,7 +85,30 @@ export class ChatService {
                 message.id,
             );
         }
-        return { ...message, receiverId: conversation.customerId === body.senderId ? conversation.traderId : conversation.customerId, };
+
+        const receiverId = conversation.customerId === body.senderId ? conversation.traderId : conversation.customerId;
+
+        // Invalidate Redis cache for both users
+        await this.redisService.del(`chat:conversations:${body.senderId}`).catch(() => {});
+        await this.redisService.del(`chat:conversations:${receiverId}`).catch(() => {});
+
+        // Check if receiver is offline
+        const receiver = await this.prisma.user.findUnique({
+            where: { id: receiverId },
+            select: { isOnline: true },
+        });
+
+        if (receiver && !receiver.isOnline) {
+            await this.notificationService.createNotification(
+                receiverId,
+                'New Message',
+                `${message.sender.fullName}: ${body.message || 'Sent an attachment'}`,
+                'NEW_MESSAGE',
+                { conversationId: body.conversationId, messageId: message.id },
+            ).catch(() => {});
+        }
+
+        return { ...message, receiverId };
     }
     /*
     |--------------------------------------------------------------------------

@@ -15,13 +15,10 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
 
 import { CreateQuoteDto } from './dto/create-quote.dto';
-import { UpdateQuoteDto } from './dto/update-quote.dto';
 import { RedisService } from 'src/redis/redis.service';
 import { GetMyQuotesDto } from './dto/get-my-quote.dto';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
-import * as fs from 'fs/promises';
-import * as path from 'path';
 
 @Injectable()
 export class QuoteService {
@@ -667,6 +664,18 @@ export class QuoteService {
             'admin:jobs:*',
         );
         await this.redisService.deleteByPattern('admin:quotes:*');
+
+        // Notify customer about new quote
+        this.notificationService.createNotification(
+            job.customerId,
+            'New Quote Received',
+            `${result.trader.fullName} has submitted a quote for your job: "${job.title}"`,
+            'QUOTE_RECEIVED',
+            { jobId, quoteId: result.id },
+        ).catch(err => {
+            this.logger.error(`Failed to notify customer about new quote: ${err.message}`);
+        });
+
         return {
             message:
                 'Quote submitted successfully',
@@ -1201,143 +1210,6 @@ export class QuoteService {
 
         return {
             message: 'Quote rejected successfully',
-        };
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | UPDATE QUOTE
-    |--------------------------------------------------------------------------
-    */
-    async updateQuote(
-        traderId: string,
-        quoteId: string,
-        dto: UpdateQuoteDto,
-        files: Express.Multer.File[],
-    ) {
-        /*
-        |--------------------------------------------------------------------------
-        | FIND QUOTE WITH ATTACHMENTS
-        |--------------------------------------------------------------------------
-        */
-        const quote = await this.prisma.quote.findUnique({
-            where: {
-                id: quoteId,
-            },
-            include: {
-                attachments: true,
-            },
-        });
-
-        if (!quote) {
-            throw new NotFoundException(
-                'Quote not found',
-            );
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | AUTHORIZATION
-        |--------------------------------------------------------------------------
-        */
-        if (quote.traderId !== traderId) {
-            throw new BadRequestException(
-                'You are not allowed to update this quote',
-            );
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | STATUS CHECK
-        |--------------------------------------------------------------------------
-        */
-        if (quote.status !== QuoteStatus.PENDING) {
-            throw new BadRequestException(
-                `Quote is already ${quote.status.toLowerCase()}`,
-            );
-        }
-
-        try {
-            // Delete old attachments if new ones are provided
-            if (files && files.length > 0) {
-                for (const attachment of quote.attachments) {
-                    try {
-                        const filePath = path.join(
-                            process.cwd(),
-                            attachment.file,
-                        );
-                        await fs.unlink(filePath);
-                    } catch (error) {
-                        this.logger.warn(
-                            `Failed to delete file ${attachment.file}: ${error.message}`,
-                        );
-                    }
-                }
-            }
-
-            await this.prisma.$transaction(
-                async (tx) => {
-                    // Update main quote fields
-                    await tx.quote.update({
-                        where: {
-                            id: quoteId,
-                        },
-                        data: {
-                            price: dto.price !== undefined ? dto.price : quote.price,
-                            estimatedDays: dto.estimatedDays !== undefined ? dto.estimatedDays : quote.estimatedDays,
-                            message: dto.message !== undefined ? dto.message : quote.message,
-                        },
-                    });
-
-                    // If new files were provided, delete old attachment db records and create new ones
-                    if (files && files.length > 0) {
-                        await tx.quoteAttachment.deleteMany({
-                            where: {
-                                quoteId: quoteId,
-                            },
-                        });
-
-                        await tx.quoteAttachment.createMany({
-                            data: files.map((file) => ({
-                                quoteId: quoteId,
-                                file: `uploads/quotes/${file.filename}`,
-                                filename: file.originalname,
-                                mimeType: file.mimetype,
-                                size: file.size,
-                            })),
-                        });
-                    }
-                },
-            );
-
-            // Invalidate Redis caches
-            await this.redisService.deleteByPattern(
-                `trader:matched-jobs:${traderId}:*`,
-            );
-            await this.redisService.deleteByPattern(
-                `trader:quotes:${traderId}:*`,
-            );
-            await this.redisService.del(
-                `trader:quote:${traderId}:job:${quote.jobId}`,
-            );
-            await this.redisService.del(
-                `job:quotes:${quote.jobId}`,
-            );
-            await this.redisService.deleteByPattern(
-                'admin:jobs:*',
-            );
-            await this.redisService.deleteByPattern('admin:quotes:*');
-
-        } catch (error) {
-            this.logger.error(
-                `Failed to update quote ${quoteId}: ${error.message}`,
-                error.stack,
-            );
-            throw error;
-        }
-
-        return {
-            message: 'Quote updated successfully',
         };
     }
 

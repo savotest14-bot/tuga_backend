@@ -171,7 +171,7 @@ export class ReviewService {
         const review = await this.prisma.review.create({
             data: {
                 customerId,
-                traderId: dto.traderId,
+                traderId: dto.traderId || null,
 
                 jobId: dto.jobId,
 
@@ -263,7 +263,7 @@ export class ReviewService {
         |--------------------------------------------------------------------------
         */
 
-        if (status === ReviewStatus.APPROVED) {
+        if (status === ReviewStatus.APPROVED && dto.traderId) {
             await this.recalculateTraderMetrics(
                 dto.traderId,
             );
@@ -276,26 +276,12 @@ export class ReviewService {
         |--------------------------------------------------------------------------
         */
 
-        await Promise.all([
-            this.redisService.del(
-                `trader:summary:${dto.traderId}`,
-            ),
-
-            this.redisService.del(
-                `trader:reviews:${dto.traderId}`,
-            ),
-
-            this.redisService.deleteByPattern(
-                `trader:reviews:${dto.traderId}:*`,
-            ),
+        const cachePromises: Promise<any>[] = [
             this.redisService.del(
                 'global:average_rating',
             ),
             this.redisService.deleteByPattern(
                 'reviews:pending:*',
-            ),
-            this.redisService.deleteByPattern(
-                `trader:reviews:${review.traderId}:*`,
             ),
             this.redisService.deleteByPattern(
                 `customer:reviews:${customerId}:*`,
@@ -305,7 +291,31 @@ export class ReviewService {
             ),
             this.redisService.deleteByPattern('admin:reviews:*'),
             this.redisService.deleteByPattern(`public:reviews:*`),
-        ]);
+        ];
+
+        if (dto.traderId) {
+            cachePromises.push(
+                this.redisService.del(
+                    `trader:summary:${dto.traderId}`,
+                ),
+                this.redisService.del(
+                    `trader:reviews:${dto.traderId}`,
+                ),
+                this.redisService.deleteByPattern(
+                    `trader:reviews:${dto.traderId}:*`,
+                ),
+            );
+        }
+
+        if (review.traderId) {
+            cachePromises.push(
+                this.redisService.deleteByPattern(
+                    `trader:reviews:${review.traderId}:*`,
+                ),
+            );
+        }
+
+        await Promise.all(cachePromises);
 
         try {
 
@@ -315,7 +325,7 @@ export class ReviewService {
             |--------------------------------------------------------------------------
             */
 
-            if (dto.reviewType === ReviewType.JOB) {
+            if (dto.reviewType === ReviewType.JOB && dto.traderId) {
 
                 await this.notificationService.createNotification(
 
@@ -646,25 +656,12 @@ export class ReviewService {
             | UPDATE REVIEW
             |--------------------------------------------------------------------------
             */
-            await Promise.all([
-                this.redisService.del(
-                    `trader:summary:${review.traderId}`,
-                ),
-
-                this.redisService.del(
-                    `trader:reviews:${review.traderId}`,
-                ),
-                this.redisService.deleteByPattern(
-                    `trader:reviews:${review.traderId}:*`,
-                ),
+            const cachePromises: Promise<any>[] = [
                 this.redisService.del(
                     'global:average_rating',
                 ),
                 this.redisService.deleteByPattern(
                     'reviews:pending:*',
-                ),
-                this.redisService.deleteByPattern(
-                    `trader:reviews:${review.traderId}:*`,
                 ),
                 this.redisService.deleteByPattern(
                     `customer:reviews:${customerId}:*`,
@@ -674,7 +671,23 @@ export class ReviewService {
                 ),
                 this.redisService.deleteByPattern('admin:reviews:*'),
                 this.redisService.deleteByPattern(`public:reviews:*`),
-            ]);
+            ];
+
+            if (review.traderId) {
+                cachePromises.push(
+                    this.redisService.del(
+                        `trader:summary:${review.traderId}`,
+                    ),
+                    this.redisService.del(
+                        `trader:reviews:${review.traderId}`,
+                    ),
+                    this.redisService.deleteByPattern(
+                        `trader:reviews:${review.traderId}:*`,
+                    ),
+                );
+            }
+
+            await Promise.all(cachePromises);
 
             return await tx.review.update({
                 where: { id: reviewId },
@@ -720,20 +733,17 @@ export class ReviewService {
         | RECALCULATE METRICS
         |--------------------------------------------------------------------------
         */
-        await this.recalculateTraderMetrics(review.traderId);
+        if (review.traderId) {
+            await this.recalculateTraderMetrics(review.traderId);
+        }
 
         /*
         |--------------------------------------------------------------------------
         | CLEAR CACHE
         |--------------------------------------------------------------------------
         */
-        await Promise.all([
-            this.redisService.del(`trader:summary:${review.traderId}`),
-            this.redisService.del(`trader:reviews:${review.traderId}`),
+        const updateCachePromises: Promise<any>[] = [
             this.redisService.del('global:average_rating'),
-            this.redisService.deleteByPattern(
-                `trader:reviews:${review.traderId}:*`,
-            ),
             this.redisService.deleteByPattern(
                 `customer:reviews:${customerId}:*`,
             ),
@@ -741,14 +751,26 @@ export class ReviewService {
                 `review:detail:${reviewId}:*`,
             ),
             this.redisService.deleteByPattern('admin:reviews:*'),
-        ]);
+        ];
+
+        if (review.traderId) {
+            updateCachePromises.push(
+                this.redisService.del(`trader:summary:${review.traderId}`),
+                this.redisService.del(`trader:reviews:${review.traderId}`),
+                this.redisService.deleteByPattern(
+                    `trader:reviews:${review.traderId}:*`,
+                ),
+            );
+        }
+
+        await Promise.all(updateCachePromises);
 
         /*
         |--------------------------------------------------------------------------
         | SEND NOTIFICATION (only if rating changed)
         |--------------------------------------------------------------------------
         */
-        if (dto.rating !== undefined && dto.rating !== review.rating) {
+        if (review.traderId && dto.rating !== undefined && dto.rating !== review.rating) {
             this.notificationService
                 .createNotification(
                     review.traderId,
@@ -1064,52 +1086,40 @@ export class ReviewService {
                     where: { id: reviewId },
                 });
 
-                const metrics = await tx.traderMetrics.findUnique({
-                    where: { traderId: review.traderId },
-                });
-
-                if (metrics && metrics.totalReviews > 0) {
-                    const newTotalReviews = metrics.totalReviews - 1;
-                    let newAverageRating = 0;
-
-                    if (newTotalReviews > 0) {
-                        newAverageRating =
-                            (metrics.averageRating * metrics.totalReviews - review.rating) /
-                            newTotalReviews;
-                    }
-
-                    await tx.traderMetrics.update({
+                if (review.traderId) {
+                    const metrics = await tx.traderMetrics.findUnique({
                         where: { traderId: review.traderId },
-                        data: {
-                            totalReviews: newTotalReviews,
-                            averageRating: parseFloat(newAverageRating.toFixed(2)),
-                        },
                     });
+
+                    if (metrics && metrics.totalReviews > 0) {
+                        const newTotalReviews = metrics.totalReviews - 1;
+                        let newAverageRating = 0;
+
+                        if (newTotalReviews > 0) {
+                            newAverageRating =
+                                (metrics.averageRating * metrics.totalReviews - review.rating) /
+                                newTotalReviews;
+                        }
+
+                        await tx.traderMetrics.update({
+                            where: { traderId: review.traderId },
+                            data: {
+                                totalReviews: newTotalReviews,
+                                averageRating: parseFloat(newAverageRating.toFixed(2)),
+                            },
+                        });
+                    }
                 }
             },
         );
 
         // Invalidate cached global average rating
-        await Promise.all([
-            this.redisService.del(
-                `trader:summary:${review.traderId}`,
-            ),
-
-            this.redisService.del(
-                `trader:reviews:${review.traderId}`,
-            ),
-            this.redisService.deleteByPattern(
-                `trader:reviews:${review.traderId}:*`,
-            ),
-
+        const cachePromises: Promise<any>[] = [
             this.redisService.del(
                 'global:average_rating',
             ),
             this.redisService.deleteByPattern(
                 'reviews:pending:*',
-            ),
-            this.redisService.deleteByPattern(
-                `trader:reviews:${review.traderId}:*`,
             ),
             this.redisService.deleteByPattern(
                 `customer:reviews:${customerId}:*`,
@@ -1119,7 +1129,23 @@ export class ReviewService {
             ),
             this.redisService.deleteByPattern('admin:reviews:*'),
             this.redisService.deleteByPattern(`public:reviews:*`),
-        ]);
+        ];
+
+        if (review.traderId) {
+            cachePromises.push(
+                this.redisService.del(
+                    `trader:summary:${review.traderId}`,
+                ),
+                this.redisService.del(
+                    `trader:reviews:${review.traderId}`,
+                ),
+                this.redisService.deleteByPattern(
+                    `trader:reviews:${review.traderId}:*`,
+                ),
+            );
+        }
+
+        await Promise.all(cachePromises);
 
         return {
             message: 'Review deleted successfully',

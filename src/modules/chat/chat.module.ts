@@ -20,6 +20,7 @@ import { ChatController } from './chat.controller';
 import { AuthMiddleware } from 'src/common/middleware/auth.middleware';
 import { RedisModule } from 'src/redis/redis.module';
 import { ModerationModule } from '../moderation/moderation.module';
+import { NotificationModule } from '../notification/notification.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { ModerationModule } from '../moderation/moderation.module';
     RedisModule,
     ModerationModule,
     ConfigModule,
+    NotificationModule,
 
     JwtModule.registerAsync({
       inject: [ConfigService],

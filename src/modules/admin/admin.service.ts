@@ -903,27 +903,18 @@ export class AdminService {
                 },
             });
 
-        await this.recalculateTraderMetrics(
-            review.traderId,
-        );
+        if (review.traderId) {
+            await this.recalculateTraderMetrics(
+                review.traderId,
+            );
+        }
 
-        await Promise.all([
-            this.redisService.del(
-                `trader:summary:${review.traderId}`,
-            ),
-
-            this.redisService.del(
-                `trader:reviews:${review.traderId}`,
-            ),
-
+        const cachePromises: Promise<any>[] = [
             this.redisService.del(
                 'global:average_rating',
             ),
-            await this.redisService.deleteByPattern(
-                'reviews:pending:*',
-            ),
             this.redisService.deleteByPattern(
-                `trader:reviews:${review.traderId}:*`,
+                'reviews:pending:*',
             ),
             this.redisService.del(
                 `customer:reviews:${review.customerId}`,
@@ -933,7 +924,23 @@ export class AdminService {
             ),
             this.redisService.deleteByPattern('admin:reviews:*'),
             this.redisService.deleteByPattern(`public:reviews:*`),
-        ]);
+        ];
+
+        if (review.traderId) {
+            cachePromises.push(
+                this.redisService.del(
+                    `trader:summary:${review.traderId}`,
+                ),
+                this.redisService.del(
+                    `trader:reviews:${review.traderId}`,
+                ),
+                this.redisService.deleteByPattern(
+                    `trader:reviews:${review.traderId}:*`,
+                ),
+            );
+        }
+
+        await Promise.all(cachePromises);
 
         try {
 
@@ -943,24 +950,26 @@ export class AdminService {
             |--------------------------------------------------------------------------
             */
 
-            await this.notificationService.createNotification(
+            if (review.traderId) {
+                await this.notificationService.createNotification(
 
-                review.traderId,
+                    review.traderId,
 
-                'Review Approved',
+                    'Review Approved',
 
-                'A customer review has been approved and published on your profile.',
+                    'A customer review has been approved and published on your profile.',
 
-                'REVIEW_APPROVED',
+                    'REVIEW_APPROVED',
 
-                {
-                    reviewId: review.id,
+                    {
+                        reviewId: review.id,
 
-                    rating: review.rating,
+                        rating: review.rating,
 
-                    reviewType: review.reviewType,
-                },
-            );
+                        reviewType: review.reviewType,
+                    },
+                );
+            }
 
             /*
             |--------------------------------------------------------------------------
@@ -981,7 +990,7 @@ export class AdminService {
                 {
                     reviewId: review.id,
 
-                    traderId: review.traderId,
+                    ...(review.traderId && { traderId: review.traderId }),
 
                     reviewType: review.reviewType,
                 },
