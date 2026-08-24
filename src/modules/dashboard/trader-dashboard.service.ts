@@ -213,8 +213,9 @@ export class TraderDashboardService {
                 title: j.title,
                 location: j.postcode || 'Unknown Location',
                 quotesCount: j._count?.quotes || j.quotesReceived || 0,
-                status: 'Live',
+                status: j.status,
                 price: q.price ? parseFloat(q.price.toString()) : null,
+                createdAt: j.createdAt,
             };
         });
 
