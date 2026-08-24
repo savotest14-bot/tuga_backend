@@ -15,6 +15,7 @@ import { RedisModule } from 'src/redis/redis.module';
 
 import { AuthMiddleware } from 'src/common/middleware/auth.middleware';
 import { ModerationModule } from '../moderation/moderation.module';
+import { DashboardModule } from '../dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { ModerationModule } from '../moderation/moderation.module';
     NotificationModule,
     RedisModule,
     ModerationModule,
+    DashboardModule,
   ],
 
   controllers: [

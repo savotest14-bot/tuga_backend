@@ -3,6 +3,7 @@ import {
   MessageBody,
   OnGatewayConnection,
   OnGatewayDisconnect,
+  OnGatewayInit,
   SubscribeMessage,
   WebSocketGateway,
   WebSocketServer,
@@ -17,6 +18,7 @@ import { JwtService }
 import { ChatService }
   from './chat.service';
 import { RedisService } from 'src/redis/redis.service';
+import { SocketService } from 'src/socket/socket.service';
 
 @WebSocketGateway({
   cors: true,
@@ -24,7 +26,8 @@ import { RedisService } from 'src/redis/redis.service';
 export class ChatGateway
   implements
   OnGatewayConnection,
-  OnGatewayDisconnect {
+  OnGatewayDisconnect,
+  OnGatewayInit {
 
   @WebSocketServer()
   server: Server;
@@ -41,7 +44,12 @@ export class ChatGateway
     private readonly jwtService: JwtService,
     private readonly chatService: ChatService,
     private readonly redisService: RedisService,
+    private readonly socketService: SocketService,
   ) { }
+
+  afterInit(server: Server) {
+    this.socketService.setServer(server);
+  }
 
   /*
   |--------------------------------------------------------------------------
@@ -152,6 +160,10 @@ export class ChatGateway
       await client.join(
         `user:${payload.id}`,
       );
+
+      if (payload.role === 'ADMIN') {
+        await client.join('admins');
+      }
 
       /*
       |--------------------------------------------------------------------------
@@ -408,19 +420,7 @@ export class ChatGateway
     @MessageBody()
     message: any,
   ) {
-
-    /*
-    |--------------------------------------------------------------------------
-    | SEND TO ROOM
-    |--------------------------------------------------------------------------
-    */
-
-    this.server
-      .to(message.conversationId)
-      .emit(
-        'newMessage',
-        message,
-      );
+    this.socketService.emitNewMessage(message.conversationId, message);
   }
 
   /*

@@ -5,11 +5,13 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { NotificationModule } from '../notification/notification.module';
 import { RedisModule } from 'src/redis/redis.module';
 import { MatchingProcessor } from './matching.processor';
+import { DashboardModule } from '../dashboard/dashboard.module';
 
 @Module({
   imports: [
     NotificationModule,
     RedisModule,
+    DashboardModule,
     BullModule.registerQueue({
       name: 'matching',
     }),

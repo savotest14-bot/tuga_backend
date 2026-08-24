@@ -14,6 +14,7 @@ import { NotificationModule } from '../notification/notification.module';
 import { AuthMiddleware } from 'src/common/middleware/auth.middleware';
 import { RedisModule } from 'src/redis/redis.module';
 import { BullModule } from '@nestjs/bullmq';
+import { DashboardModule } from '../dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { BullModule } from '@nestjs/bullmq';
     AuthModule,
     RedisModule,
     NotificationModule,
+    DashboardModule,
     BullModule.registerQueue({
       name: 'matching',
     }),

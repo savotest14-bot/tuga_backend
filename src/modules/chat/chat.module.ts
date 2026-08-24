@@ -1,4 +1,4 @@
-import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
+import { forwardRef, MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 
 import {
   ConfigModule,
@@ -28,7 +28,7 @@ import { NotificationModule } from '../notification/notification.module';
     RedisModule,
     ModerationModule,
     ConfigModule,
-    NotificationModule,
+    forwardRef(() => NotificationModule),
 
     JwtModule.registerAsync({
       inject: [ConfigService],

@@ -9,6 +9,7 @@ import {
     ParseUUIDPipe,
     UploadedFiles,
     UseInterceptors,
+    Patch,
 } from '@nestjs/common';
 
 import {
@@ -174,6 +175,60 @@ export class QuoteController {
         return this.quoteService.getMyQuoteByJob(
             req['user'].id,
             jobId,
+        );
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | UPDATE QUOTE
+    |--------------------------------------------------------------------------
+    */
+
+    @Patch(':quoteId')
+    @ApiBearerAuth('access-token')
+    @ApiConsumes('multipart/form-data')
+    @ApiBody({
+        schema: {
+            type: 'object',
+            properties: {
+                price: { type: 'number', nullable: true },
+                estimatedDays: { type: 'number', nullable: true },
+                message: { type: 'string', nullable: true },
+                attachments: {
+                    type: 'array',
+                    items: { type: 'string', format: 'binary' },
+                },
+            },
+        },
+    })
+    @UseInterceptors(
+        FileFieldsInterceptor(
+            [
+                {
+                    name: 'attachments',
+                    maxCount: 10,
+                },
+            ],
+            multerOptions('quotes'),
+        ),
+    )
+    async updateQuote(
+        @Req() req: Request,
+
+        @Param('quoteId', ParseUUIDPipe)
+        quoteId: string,
+
+        @Body()
+        dto: CreateQuoteDto,
+
+        @UploadedFiles()
+        files: { attachments?: Express.Multer.File[] },
+    ) {
+        return this.quoteService.updateQuote(
+            req['user'].id,
+            quoteId,
+            dto,
+            files?.attachments || [],
         );
     }
 }

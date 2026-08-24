@@ -3,6 +3,8 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
 import { RedisService } from 'src/redis/redis.service';
+import { SocketService } from 'src/socket/socket.service';
+import { TraderDashboardService } from '../dashboard/trader-dashboard.service';
 
 @Injectable()
 export class TraderMatchingService {
@@ -12,6 +14,8 @@ export class TraderMatchingService {
     private prisma: PrismaService,
     private notificationService: NotificationService,
     private redisService: RedisService,
+    private readonly socketService: SocketService,
+    private readonly traderDashboardService: TraderDashboardService,
   ) { }
 
   async matchAndSendJob(jobId: string) {
@@ -302,6 +306,12 @@ export class TraderMatchingService {
           );
 
         });
+      this.socketService.emitToUser(item.traderId, 'newJob', {
+        ...job,
+        distanceKm: item.distanceKm,
+        score: item.finalScore,
+      });
+      this.traderDashboardService.emitDashboardUpdate(item.traderId);
     }
 
     return scoredTraders;

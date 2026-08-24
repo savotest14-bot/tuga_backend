@@ -15,6 +15,7 @@ import { EscalationProcessor } from './escalation.processor';
 import { NotificationModule } from '../notification/notification.module';
 import { RedisModule } from 'src/redis/redis.module';
 import { ModerationModule } from '../moderation/moderation.module';
+import { DashboardModule } from '../dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { ModerationModule } from '../moderation/moderation.module';
     RedisModule,
     TraderMatchingModule,
     ModerationModule,
+    DashboardModule,
     BullModule.registerQueue({
       name: 'escalation',
     }),

@@ -31,13 +31,11 @@ export class ConversationService {
     |--------------------------------------------------------------------------
     */
     if (jobId) {
-      // Same job conversation already exists
-      const existingJob = await this.prisma.conversation.findFirst({
+      // Find any existing conversation between this customer and trader
+      const existingConversation = await this.prisma.conversation.findFirst({
         where: {
           customerId,
           traderId,
-          type: 'JOB',
-          jobId,
         },
         include: {
           customer: true,
@@ -46,24 +44,16 @@ export class ConversationService {
         },
       });
 
-      if (existingJob) {
-        return existingJob;
-      }
+      if (existingConversation) {
+        // If it's already a JOB conversation with the same jobId, just return it
+        if (existingConversation.type === 'JOB' && existingConversation.jobId === jobId) {
+          return existingConversation;
+        }
 
-      // Existing direct conversation
-      const directConversation = await this.prisma.conversation.findFirst({
-        where: {
-          customerId,
-          traderId,
-          type: 'DIRECT',
-        },
-      });
-
-      // First job -> convert DIRECT to JOB
-      if (directConversation) {
+        // Otherwise (it's DIRECT or a different JOB), update it to the new jobId
         return this.prisma.conversation.update({
           where: {
-            id: directConversation.id,
+            id: existingConversation.id,
           },
           data: {
             type: 'JOB',
@@ -77,7 +67,7 @@ export class ConversationService {
         });
       }
 
-      // No direct and no same job -> create new JOB conversation
+      // No existing conversation -> create new JOB conversation
       return this.prisma.conversation.create({
         data: {
           customerId,

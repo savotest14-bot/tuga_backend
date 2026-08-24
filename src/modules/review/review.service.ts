@@ -26,6 +26,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { ModerationService } from '../moderation/moderation.service';
 import { GetMyReviewsDto } from './dto/get-my-review.dto';
+import { TraderDashboardService } from '../dashboard/trader-dashboard.service';
+import { CustomerDashboardService } from '../dashboard/customer-dashboard.service';
 
 @Injectable()
 export class ReviewService {
@@ -36,6 +38,8 @@ export class ReviewService {
         private notificationService: NotificationService,
         private redisService: RedisService,
         private readonly moderationService: ModerationService,
+        private readonly traderDashboardService: TraderDashboardService,
+        private readonly customerDashboardService: CustomerDashboardService,
     ) { }
 
     /*
@@ -407,6 +411,11 @@ export class ReviewService {
             this.logger.error(
                 `Review notification failed: ${error.message}`,
             );
+        }
+
+        this.customerDashboardService.emitDashboardUpdate(customerId);
+        if (dto.traderId) {
+            this.traderDashboardService.emitDashboardUpdate(dto.traderId);
         }
 
         return {

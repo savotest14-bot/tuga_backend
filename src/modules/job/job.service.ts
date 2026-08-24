@@ -21,6 +21,9 @@ import { RedisService } from 'src/redis/redis.service';
 import { GetMyJobsDto } from './dto/get-my-job.dto';
 import { GetMatchedJobsDto } from './dto/get-match-job.dto';
 import { ModerationService } from '../moderation/moderation.service';
+import { SocketService } from 'src/socket/socket.service';
+import { TraderDashboardService } from '../dashboard/trader-dashboard.service';
+import { CustomerDashboardService } from '../dashboard/customer-dashboard.service';
 
 @Injectable()
 export class JobService {
@@ -35,6 +38,9 @@ export class JobService {
         @InjectQueue('escalation') private readonly escalationQueue: Queue,
         private redisService: RedisService,
         private readonly moderationService: ModerationService,
+        private readonly socketService: SocketService,
+        private readonly traderDashboardService: TraderDashboardService,
+        private readonly customerDashboardService: CustomerDashboardService,
     ) { }
 
     async createJob(
@@ -169,6 +175,9 @@ export class JobService {
         await this.redisService.deleteByPattern(
             'admin:jobs:*',
         );
+
+        this.customerDashboardService.emitDashboardUpdate(customerId);
+
         return {
             message: 'Job created successfully',
 
@@ -904,7 +913,7 @@ export class JobService {
     }
 
     async startJob(
-        customerId: string,
+        userId: string,
         jobId: string,
     ) {
 
@@ -933,7 +942,10 @@ export class JobService {
         |--------------------------------------------------------------------------
         */
 
-        if (job.customerId !== customerId) {
+        const isCustomer = job.customerId === userId;
+        const isTrader = job.selectedTraderId === userId;
+
+        if (!isCustomer && !isTrader) {
             throw new ForbiddenException(
                 'Unauthorized',
             );
@@ -975,28 +987,45 @@ export class JobService {
         |--------------------------------------------------------------------------
         */
 
-        this.notificationService
-            .createNotification(
-                job.selectedTraderId!,
-                'Job Started',
-                `Job "${job.title}" is now in progress`,
-                'JOB_STARTED',
-                {
-                    jobId,
-                },
-            )
-            .catch(() => { });
+        const notifyUserId = isCustomer ? job.selectedTraderId! : job.customerId;
+        if (notifyUserId) {
+            this.notificationService
+                .createNotification(
+                    notifyUserId,
+                    'Job Started',
+                    `Job "${job.title}" is now in progress`,
+                    'JOB_STARTED',
+                    {
+                        jobId,
+                    },
+                )
+                .catch(() => { });
+        }
 
         await this.redisService.deleteByPattern(
-            `customer:jobs:${customerId}:*`,
+            `customer:jobs:${job.customerId}:*`,
         );
-        await this.redisService.deleteByPattern(
-            `trader:matched-jobs:${job.selectedTraderId}:*`,
-        );
+        if (job.selectedTraderId) {
+            await this.redisService.deleteByPattern(
+                `trader:matched-jobs:${job.selectedTraderId}:*`,
+            );
+        }
         await this.redisService.deleteByPattern(
             'admin:jobs:*',
         );
         await this.redisService.del(`admin:job:${jobId}`);
+
+        this.socketService.emitToUser(job.customerId, 'jobUpdated', updatedJob);
+        if (job.selectedTraderId) {
+            this.socketService.emitToUser(job.selectedTraderId, 'jobUpdated', updatedJob);
+        }
+        this.socketService.emitToRoom('admins', 'jobUpdated', updatedJob);
+
+        this.customerDashboardService.emitDashboardUpdate(job.customerId);
+        if (job.selectedTraderId) {
+            this.traderDashboardService.emitDashboardUpdate(job.selectedTraderId);
+        }
+
         return {
             message:
                 'Job started successfully',
@@ -1137,6 +1166,17 @@ export class JobService {
             )
             .catch(() => { });
 
+        this.socketService.emitToUser(customerId, 'jobUpdated', updatedJob);
+        if (job.selectedTraderId) {
+            this.socketService.emitToUser(job.selectedTraderId, 'jobUpdated', updatedJob);
+        }
+        this.socketService.emitToRoom('admins', 'jobUpdated', updatedJob);
+
+        this.customerDashboardService.emitDashboardUpdate(customerId);
+        if (job.selectedTraderId) {
+            this.traderDashboardService.emitDashboardUpdate(job.selectedTraderId);
+        }
+
         return {
 
             message:
@@ -1247,6 +1287,17 @@ export class JobService {
             'admin:jobs:*',
         );
         await this.redisService.del(`admin:job:${jobId}`);
+
+        this.socketService.emitToUser(customerId, 'jobUpdated', updatedJob);
+        if (job.selectedTraderId) {
+            this.socketService.emitToUser(job.selectedTraderId, 'jobUpdated', updatedJob);
+        }
+        this.socketService.emitToRoom('admins', 'jobUpdated', updatedJob);
+
+        this.customerDashboardService.emitDashboardUpdate(customerId);
+        if (job.selectedTraderId) {
+            this.traderDashboardService.emitDashboardUpdate(job.selectedTraderId);
+        }
 
         return {
 
@@ -1716,7 +1767,7 @@ export class JobService {
             );
         }
 
-        await this.prisma.job.update({
+        const updatedJob = await this.prisma.job.update({
             where: {
                 id: jobId,
             },
@@ -1744,8 +1795,20 @@ export class JobService {
             this.redisService.del(`admin:job:${jobId}`),
         ]);
 
+        this.socketService.emitToUser(customerId, 'jobUpdated', updatedJob);
+        if (updatedJob.selectedTraderId) {
+            this.socketService.emitToUser(updatedJob.selectedTraderId, 'jobUpdated', updatedJob);
+        }
+        this.socketService.emitToRoom('admins', 'jobUpdated', updatedJob);
+
+        this.customerDashboardService.emitDashboardUpdate(customerId);
+        if (updatedJob.selectedTraderId) {
+            this.traderDashboardService.emitDashboardUpdate(updatedJob.selectedTraderId);
+        }
+
         return {
             message: 'Job closed successfully',
+            data: updatedJob,
         };
     }
 }

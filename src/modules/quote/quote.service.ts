@@ -3,6 +3,7 @@ import {
     Injectable,
     NotFoundException,
     Logger,
+    ForbiddenException,
 } from '@nestjs/common';
 
 import {
@@ -13,12 +14,17 @@ import {
 
 import { PrismaService } from 'src/prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
+import { SocketService } from 'src/socket/socket.service';
+import * as fs from 'fs/promises';
+import * as path from 'path';
 
 import { CreateQuoteDto } from './dto/create-quote.dto';
 import { RedisService } from 'src/redis/redis.service';
 import { GetMyQuotesDto } from './dto/get-my-quote.dto';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
+import { TraderDashboardService } from '../dashboard/trader-dashboard.service';
+import { CustomerDashboardService } from '../dashboard/customer-dashboard.service';
 
 @Injectable()
 export class QuoteService {
@@ -30,6 +36,9 @@ export class QuoteService {
         private readonly notificationService: NotificationService,
         private redisService: RedisService,
         @InjectQueue('matching') private readonly matchingQueue: Queue,
+        private readonly socketService: SocketService,
+        private readonly traderDashboardService: TraderDashboardService,
+        private readonly customerDashboardService: CustomerDashboardService,
     ) { }
 
 
@@ -676,6 +685,29 @@ export class QuoteService {
             this.logger.error(`Failed to notify customer about new quote: ${err.message}`);
         });
 
+        // Emit newQuote to customer
+        const quotePayload = {
+            ...result,
+            attachments: result?.attachments?.map(a => ({
+                ...a,
+                url: `${process.env.APP_URL}/${a.file}`,
+            })) || [],
+        };
+        this.socketService.emitToUser(job.customerId, 'newQuote', quotePayload);
+
+        // Emit jobUpdated (due to quote count / status change) to customer and admins
+        this.prisma.job.findUnique({
+            where: { id: jobId },
+        }).then(updatedJob => {
+            if (updatedJob) {
+                this.socketService.emitToUser(job.customerId, 'jobUpdated', updatedJob);
+                this.socketService.emitToRoom('admins', 'jobUpdated', updatedJob);
+            }
+        }).catch(() => {});
+
+        this.traderDashboardService.emitDashboardUpdate(traderId);
+        this.customerDashboardService.emitDashboardUpdate(job.customerId);
+
         return {
             message:
                 'Quote submitted successfully',
@@ -803,7 +835,7 @@ export class QuoteService {
         */
 
         try {
-            await this.prisma.$transaction(
+            const { rejectedQuotes: txRejectedQuotes, updatedJob } = await this.prisma.$transaction(
                 async (tx) => {
 
                     /*
@@ -962,7 +994,7 @@ export class QuoteService {
                         },
                     });
 
-                    return { rejectedQuotes };
+                    return { rejectedQuotes, updatedJob };
                 },
             );
 
@@ -1039,6 +1071,29 @@ export class QuoteService {
                 }),
             );
 
+            // Emit quote status updates to traders
+            this.socketService.emitToUser(quote.traderId, 'quoteUpdated', {
+                id: quoteId,
+                status: QuoteStatus.ACCEPTED,
+            });
+            for (const rejected of txRejectedQuotes) {
+                this.socketService.emitToUser(rejected.traderId, 'quoteUpdated', {
+                    id: rejected.id,
+                    status: QuoteStatus.REJECTED,
+                });
+            }
+
+            // Emit job status update to customer, accepted trader, and admins
+            this.socketService.emitToUser(quote.job.customerId, 'jobUpdated', updatedJob);
+            this.socketService.emitToUser(quote.traderId, 'jobUpdated', updatedJob);
+            this.socketService.emitToRoom('admins', 'jobUpdated', updatedJob);
+
+            this.customerDashboardService.emitDashboardUpdate(customerId);
+            this.traderDashboardService.emitDashboardUpdate(quote.traderId);
+            for (const rejected of txRejectedQuotes) {
+                this.traderDashboardService.emitDashboardUpdate(rejected.traderId);
+            }
+
         } catch (error) {
             this.logger.error(
                 `Failed to accept quote ${quoteId}: ${error.message}`,
@@ -1050,6 +1105,7 @@ export class QuoteService {
             `customer:jobs:${customerId}:*`,
         );
         await this.redisService.deleteByPattern('admin:quotes:*');
+
         return {
             message:
                 'Trader selected successfully',
@@ -1111,14 +1167,14 @@ export class QuoteService {
         }
 
         try {
-            await this.prisma.$transaction(
+            const { rejectedQuote, updatedJob } = await this.prisma.$transaction(
                 async (tx) => {
                     /*
                     |--------------------------------------------------------------------------
                     | REJECT THIS QUOTE
                     |--------------------------------------------------------------------------
                     */
-                    await tx.quote.update({
+                    const rejectedQuote = await tx.quote.update({
                         where: {
                             id: quoteId,
                         },
@@ -1149,7 +1205,7 @@ export class QuoteService {
                     |--------------------------------------------------------------------------
                     */
                     const newQuotesReceived = Math.max(0, quote.job.quotesReceived - 1);
-                    await tx.job.update({
+                    const updatedJob = await tx.job.update({
                         where: {
                             id: quote.jobId,
                         },
@@ -1158,6 +1214,8 @@ export class QuoteService {
                             status: newQuotesReceived === 0 ? JobStatus.POSTED : JobStatus.QUOTE_RECEIVED,
                         },
                     });
+
+                    return { rejectedQuote, updatedJob };
                 },
             );
 
@@ -1176,6 +1234,13 @@ export class QuoteService {
             ).catch(err => {
                 this.logger.error(`Failed to notify rejected trader: ${err.message}`);
             });
+
+            // Emit quote status update to trader
+            this.socketService.emitToUser(quote.traderId, 'quoteUpdated', rejectedQuote);
+
+            // Emit job status update to customer and admins
+            this.socketService.emitToUser(quote.job.customerId, 'jobUpdated', updatedJob);
+            this.socketService.emitToRoom('admins', 'jobUpdated', updatedJob);
 
             // Clear cache for trader
             await this.redisService.deleteByPattern(
@@ -1207,6 +1272,9 @@ export class QuoteService {
             );
             throw error;
         }
+
+        this.customerDashboardService.emitDashboardUpdate(customerId);
+        this.traderDashboardService.emitDashboardUpdate(quote.traderId);
 
         return {
             message: 'Quote rejected successfully',
@@ -1453,4 +1521,209 @@ export class QuoteService {
         return result;
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | UPDATE QUOTE
+    |--------------------------------------------------------------------------
+    */
+
+    async updateQuote(
+        traderId: string,
+        quoteId: string,
+        dto: CreateQuoteDto,
+        files: Express.Multer.File[] = [],
+    ) {
+        const quote = await this.prisma.quote.findUnique({
+            where: { id: quoteId },
+            include: {
+                job: true,
+                trader: {
+                    select: {
+                        id: true,
+                        fullName: true,
+                    },
+                },
+            },
+        });
+
+        if (!quote) {
+            throw new NotFoundException('Quote not found');
+        }
+
+        if (quote.traderId !== traderId) {
+            throw new ForbiddenException('You are not allowed to update this quote');
+        }
+
+        const job = quote.job;
+        if (
+            job.status === JobStatus.ASSIGNED ||
+            job.status === JobStatus.COMPLETED ||
+            job.status === JobStatus.CANCELLED
+        ) {
+            throw new BadRequestException('This job is no longer active or accepting quotes');
+        }
+
+        const wasRejected = quote.status === QuoteStatus.REJECTED;
+
+        const existingAttachments = await this.prisma.quoteAttachment.findMany({
+            where: { quoteId },
+        });
+
+        const { result, updatedJob } = await this.prisma.$transaction(
+            async (tx) => {
+                // If new attachments are uploaded, delete existing ones
+                if (files && files.length > 0) {
+                    await tx.quoteAttachment.deleteMany({
+                        where: { quoteId },
+                    });
+                }
+
+                const updatedQuote = await tx.quote.update({
+                    where: { id: quoteId },
+                    data: {
+                        price: dto.price ?? quote.price,
+                        estimatedDays: dto.estimatedDays ?? quote.estimatedDays,
+                        message: dto.message ?? quote.message,
+                        status: QuoteStatus.PENDING, // Reset status to PENDING
+                        ...(files && files.length > 0
+                            ? {
+                                  attachments: {
+                                      create: files.map((file) => ({
+                                          file: `uploads/quotes/${file.filename}`,
+                                          filename: file.originalname,
+                                          mimeType: file.mimetype,
+                                          size: file.size,
+                                      })),
+                                  },
+                              }
+                            : {}),
+                    },
+                    include: {
+                        trader: {
+                            select: {
+                                id: true,
+                                fullName: true,
+                                email: true,
+                            },
+                        },
+                        job: {
+                            select: {
+                                id: true,
+                                title: true,
+                                status: true,
+                            },
+                        },
+                        attachments: true,
+                    },
+                });
+
+                let updatedJob: any = null;
+                if (wasRejected) {
+                    // Update Match Status back to QUOTED
+                    await tx.jobTraderMatch.update({
+                        where: {
+                            jobId_traderId: {
+                                jobId: quote.jobId,
+                                traderId: quote.traderId,
+                            },
+                        },
+                        data: {
+                            status: JobMatchStatus.QUOTED,
+                            isQuoteSubmitted: true,
+                            respondedAt: new Date(),
+                        },
+                    });
+
+                    // Update Job quotes count and status
+                    const newQuotesReceived = job.quotesReceived + 1;
+                    updatedJob = await tx.job.update({
+                        where: { id: quote.jobId },
+                        data: {
+                            quotesReceived: newQuotesReceived,
+                            status: JobStatus.QUOTE_RECEIVED,
+                        },
+                    });
+                }
+
+                return { result: updatedQuote, updatedJob };
+            },
+        );
+
+        // Delete previous attachments from server disk
+        if (files && files.length > 0 && existingAttachments.length > 0) {
+            for (const attachment of existingAttachments) {
+                try {
+                    const filePath = path.join(process.cwd(), attachment.file);
+                    await fs.unlink(filePath);
+                } catch (error) {
+                    this.logger.warn(`Failed to delete quote attachment file ${attachment.file}: ${error.message}`);
+                }
+            }
+        }
+
+        // Clear cache
+        await this.redisService.deleteByPattern(`trader:matched-jobs:${traderId}:*`);
+        await this.redisService.del(`job:quotes:${quote.jobId}`);
+        await this.redisService.deleteByPattern(`trader:quotes:${traderId}:*`);
+        await this.redisService.del(`trader:quote:${traderId}:job:${quote.jobId}`);
+        await this.redisService.deleteByPattern('admin:jobs:*');
+        await this.redisService.deleteByPattern('admin:quotes:*');
+        await this.redisService.deleteByPattern(`customer:jobs:${job.customerId}:*`);
+
+        // Notify customer about the updated quote
+        const notificationTitle = wasRejected ? 'Resubmitted Quote Received' : 'Quote Updated';
+        const notificationBody = wasRejected
+            ? `${quote.trader.fullName} has resubmitted their quote for your job: "${job.title}"`
+            : `${quote.trader.fullName} has updated their quote for your job: "${job.title}"`;
+
+        this.notificationService
+            .createNotification(
+                job.customerId,
+                notificationTitle,
+                notificationBody,
+                'QUOTE_RECEIVED',
+                { jobId: job.id, quoteId },
+            )
+            .catch((err) => {
+                this.logger.error(`Failed to notify customer about quote update: ${err.message}`);
+            });
+
+        // Emit real-time updates via SocketService
+        const quotePayload = {
+            ...result,
+            attachments:
+                result?.attachments?.map((a) => ({
+                    ...a,
+                    url: `${process.env.APP_URL}/${a.file}`,
+                })) || [],
+        };
+
+        // Notify customer UI about the new/updated quote (Quotes details page)
+        this.socketService.emitToUser(job.customerId, 'newQuote', quotePayload);
+
+        // Notify trader UI that their quote is updated/pending (My Quotes page)
+        this.socketService.emitToUser(traderId, 'quoteUpdated', result);
+
+        // Notify customer and admins about the job status/stats update (My Jobs page)
+        if (updatedJob) {
+            this.socketService.emitToUser(job.customerId, 'jobUpdated', updatedJob);
+            this.socketService.emitToRoom('admins', 'jobUpdated', updatedJob);
+        } else {
+            const freshJob = await this.prisma.job.findUnique({
+                where: { id: quote.jobId },
+            });
+            if (freshJob) {
+                this.socketService.emitToUser(job.customerId, 'jobUpdated', freshJob);
+                this.socketService.emitToRoom('admins', 'jobUpdated', freshJob);
+            }
+        }
+
+        this.traderDashboardService.emitDashboardUpdate(traderId);
+        this.customerDashboardService.emitDashboardUpdate(job.customerId);
+
+        return {
+            message: wasRejected ? 'Quote resubmitted successfully' : 'Quote updated successfully',
+            data: quotePayload,
+        };
+    }
 }

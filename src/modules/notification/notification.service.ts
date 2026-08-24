@@ -4,6 +4,7 @@ import { Queue } from 'bullmq';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { RedisService } from 'src/redis/redis.service';
 import { GetNotificationsDto } from './dto/get-my-notification.dto';
+import { SocketService } from 'src/socket/socket.service';
 
 @Injectable()
 export class NotificationService {
@@ -13,6 +14,7 @@ export class NotificationService {
     private readonly prisma: PrismaService,
     private redisService: RedisService,
     @InjectQueue('notifications') private readonly notificationQueue: Queue,
+    private readonly socketService: SocketService,
   ) { }
 
   async createNotification(
@@ -74,6 +76,18 @@ export class NotificationService {
     await this.redisService.deleteByPattern(
       `notifications:${userId}:*`,
     );
+
+    const unreadCount = await this.prisma.notification.count({
+      where: {
+        userId,
+        isRead: false,
+      },
+    });
+
+    this.socketService.emitToUser(userId, 'newNotification', {
+      ...notification,
+      unreadCount,
+    });
 
     return notification;
   }

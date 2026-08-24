@@ -38,6 +38,7 @@ import { TraderMatchingModule } from './modules/trader-matching/trader-matching.
 import { QuoteModule } from './modules/quote/quote.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ChatModule } from './modules/chat/chat.module';
+import { SocketModule } from './socket/socket.module';
 import { ConversationModule } from './modules/conversation/conversation.module';
 import { NotificationModule } from './modules/notification/notification.module';
 import { ReviewModule } from './modules/review/review.module';
@@ -47,6 +48,7 @@ import { FaqModule } from './modules/faq/faq.module';
 import { ViolationKeywordSeeder } from './common/seeder/violation-keyword.seeder';
 import { ModerationModule } from './modules/moderation/moderation.module';
 import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -99,6 +101,8 @@ import { SubscriptionsModule } from './modules/subscriptions/subscriptions.modul
 
     ChatModule,
 
+    SocketModule,
+
     ConversationModule,
 
     NotificationModule,
@@ -112,6 +116,8 @@ import { SubscriptionsModule } from './modules/subscriptions/subscriptions.modul
     FaqModule,
 
     ModerationModule,
+
+    DashboardModule,
 
   ],
 

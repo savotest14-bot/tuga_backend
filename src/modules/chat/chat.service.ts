@@ -12,6 +12,7 @@ import {
 import { ModerationService } from '../moderation/moderation.service';
 import { NotificationService } from '../notification/notification.service';
 import { RedisService } from 'src/redis/redis.service';
+import { SocketService } from 'src/socket/socket.service';
 
 @Injectable()
 export class ChatService {
@@ -21,6 +22,7 @@ export class ChatService {
         private readonly moderationService: ModerationService,
         private readonly notificationService: NotificationService,
         private readonly redisService: RedisService,
+        private readonly socketService: SocketService,
     ) { }
 
     /*
@@ -107,6 +109,12 @@ export class ChatService {
                 { conversationId: body.conversationId, messageId: message.id },
             ).catch(() => {});
         }
+
+        // Emit new message event to room and users (deduplicated in SocketService)
+        this.socketService.emitNewMessage(body.conversationId, {
+            ...message,
+            receiverId,
+        });
 
         return { ...message, receiverId };
     }

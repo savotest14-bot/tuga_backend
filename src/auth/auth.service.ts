@@ -2198,13 +2198,51 @@ export class AuthService {
 
                 // Update Trader Profile
                 if (user.role === 'TRADER') {
-                    const categoryChanged =
-                        body.tradeCategories !== undefined ||
-                        body.skillsServices !== undefined ||
-                        body.subCategories !== undefined;
+                    const profile = traderProfile!;
+                    const tradeCategoryChanged = body.tradeCategories !== undefined;
+                    const targetCategories = body.tradeCategories
+                        ? [...new Set(body.tradeCategories)]
+                        : profile.tradeCategories;
+                    const targetSkills = body.skillsServices
+                        ? [...new Set(body.skillsServices)]
+                        : profile.skillsServices;
+                    const targetSubCategories = body.subCategories
+                        ? [...new Set(body.subCategories)]
+                        : profile.subCategories;
 
-                    // Category Change Request
-                    if (categoryChanged && traderProfile) {
+                    // 1. Relational belongs validation
+                    if (targetSkills.length > 0) {
+                        const skillsDb = await tx.skillService.findMany({
+                            where: { id: { in: targetSkills } },
+                            select: { id: true, categoryId: true },
+                        });
+                        if (skillsDb.length !== targetSkills.length) {
+                            throw new BadRequestException('One or more selected skill services do not exist');
+                        }
+                        for (const skill of skillsDb) {
+                            if (!targetCategories.includes(skill.categoryId)) {
+                                throw new BadRequestException(`Skill service "${skill.id}" does not belong to the selected trade categories`);
+                            }
+                        }
+                    }
+
+                    if (targetSubCategories.length > 0) {
+                        const subCategoriesDb = await tx.subCategory.findMany({
+                            where: { id: { in: targetSubCategories } },
+                            select: { id: true, skillServiceId: true },
+                        });
+                        if (subCategoriesDb.length !== targetSubCategories.length) {
+                            throw new BadRequestException('One or more selected subcategories do not exist');
+                        }
+                        for (const sub of subCategoriesDb) {
+                            if (!targetSkills.includes(sub.skillServiceId)) {
+                                throw new BadRequestException(`Subcategory "${sub.id}" does not belong to the selected skill services`);
+                            }
+                        }
+                    }
+
+                    // 2. Category Change Request (created only when tradeCategories is modified)
+                    if (tradeCategoryChanged && traderProfile) {
                         const subscription =
                             await tx.subscription.findUnique({
                                 where: {
@@ -2230,14 +2268,9 @@ export class AuthService {
                             );
                         }
 
-                        const selectedTrades =
-                            body.tradeCategories
-                                ? [...new Set(body.tradeCategories)]
-                                : traderProfile.tradeCategories;
-
                         if (
                             !subscription.plan.unlimitedTrades &&
-                            selectedTrades.length >
+                            targetCategories.length >
                             subscription.plan.maxTrades
                         ) {
                             throw new BadRequestException(
@@ -2258,15 +2291,9 @@ export class AuthService {
                         await tx.traderCategoryChangeRequest.create({
                             data: {
                                 traderProfileId: traderProfile.id,
-                                tradeCategories: body.tradeCategories
-                                    ? [...new Set(body.tradeCategories)]
-                                    : traderProfile.tradeCategories,
-                                skillsServices: body.skillsServices
-                                    ? [...new Set(body.skillsServices)]
-                                    : traderProfile.skillsServices,
-                                subCategories: body.subCategories
-                                    ? [...new Set(body.subCategories)]
-                                    : traderProfile.subCategories,
+                                tradeCategories: targetCategories,
+                                skillsServices: targetSkills,
+                                subCategories: targetSubCategories,
                             },
                         });
 
@@ -2293,6 +2320,14 @@ export class AuthService {
                                 ),
                             ),
                         );
+                    } else {
+                        // Directly update skillservice and subcategory if tradeCategories was NOT modified
+                        if (body.skillsServices !== undefined) {
+                            traderData.skillsServices = targetSkills;
+                        }
+                        if (body.subCategories !== undefined) {
+                            traderData.subCategories = targetSubCategories;
+                        }
                     }
 
                     // Document update notification
