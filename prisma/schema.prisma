@@ -715,19 +715,13 @@ model Job {
 
   customerId String
 
-  categoryId String
-
-  skillServiceId String
-
-  subCategoryId String?
-
   customer User @relation("CustomerJobs", fields: [customerId], references: [id], onDelete: Cascade)
 
-  category Category @relation(fields: [categoryId], references: [id])
+  categories Category[]
 
-  skillService SkillService @relation(fields: [skillServiceId], references: [id])
+  skillServices SkillService[]
 
-  subCategory SubCategory? @relation(fields: [subCategoryId], references: [id])
+  subCategories SubCategory[]
 
   postcode String?
 

@@ -87,16 +87,76 @@ export class JobService {
         |--------------------------------------------------------------------------
         */
 
+        /*
+        |--------------------------------------------------------------------------
+        | VALIDATE CATEGORIES & SKILL SERVICES & SUB CATEGORIES RELATIONSHIPS
+        |--------------------------------------------------------------------------
+        */
+        if (!dto.categoryIds || dto.categoryIds.length === 0) {
+            throw new BadRequestException('At least one category is required');
+        }
+        if (!dto.skillServiceIds || dto.skillServiceIds.length === 0) {
+            throw new BadRequestException('At least one skill service is required');
+        }
+
+        const categoriesDb = await this.prisma.category.findMany({
+            where: { id: { in: dto.categoryIds } },
+            select: { id: true },
+        });
+        if (categoriesDb.length !== dto.categoryIds.length) {
+            throw new BadRequestException('One or more selected categories do not exist');
+        }
+
+        const skillServicesDb = await this.prisma.skillService.findMany({
+            where: { id: { in: dto.skillServiceIds } },
+            select: { id: true, categoryId: true },
+        });
+        if (skillServicesDb.length !== dto.skillServiceIds.length) {
+            throw new BadRequestException('One or more selected skill services do not exist');
+        }
+        for (const skill of skillServicesDb) {
+            if (!dto.categoryIds.includes(skill.categoryId)) {
+                throw new BadRequestException(`Skill service "${skill.id}" does not belong to the selected categories`);
+            }
+        }
+
+        if (dto.subCategoryIds && dto.subCategoryIds.length > 0) {
+            const subCategoriesDb = await this.prisma.subCategory.findMany({
+                where: { id: { in: dto.subCategoryIds } },
+                select: { id: true, skillServiceId: true },
+            });
+            if (subCategoriesDb.length !== dto.subCategoryIds.length) {
+                throw new BadRequestException('One or more selected subcategories do not exist');
+            }
+            for (const sub of subCategoriesDb) {
+                if (!dto.skillServiceIds.includes(sub.skillServiceId)) {
+                    throw new BadRequestException(`Subcategory "${sub.id}" does not belong to the selected skill services`);
+                }
+            }
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | CREATE JOB
+        |--------------------------------------------------------------------------
+        */
+
         const job =
             await this.prisma.job.create({
                 data: {
                     customerId,
 
-                    categoryId: dto.categoryId,
+                    categories: {
+                        connect: dto.categoryIds.map((id) => ({ id })),
+                    },
 
-                    skillServiceId: dto.skillServiceId,
+                    skillServices: {
+                        connect: dto.skillServiceIds.map((id) => ({ id })),
+                    },
 
-                    subCategoryId: dto.subCategoryId,
+                    subCategories: {
+                        connect: (dto.subCategoryIds || []).map((id) => ({ id })),
+                    },
 
                     postcode: dto.postcode,
 
@@ -130,11 +190,11 @@ export class JobService {
                 include: {
                     attachments: true,
 
-                    category: true,
+                    categories: true,
 
-                    subCategory: true,
+                    subCategories: true,
 
-                    skillService: true,
+                    skillServices: true,
 
                     customer: {
                         select: {
@@ -184,6 +244,10 @@ export class JobService {
             data: {
                 ...job,
 
+                category: job.categories[0] || null,
+                skillService: job.skillServices[0] || null,
+                subCategory: job.subCategories[0] || null,
+
                 attachments:
                     job.attachments.map((attachment) => ({
                         ...attachment,
@@ -215,6 +279,9 @@ export class JobService {
 
                 include: {
                     attachments: true,
+                    categories: true,
+                    skillServices: true,
+                    subCategories: true,
                 },
             });
 
@@ -262,32 +329,91 @@ export class JobService {
         |--------------------------------------------------------------------------
         */
 
+        const existingCategoryIds = existingJob.categories.map(c => c.id);
+        const existingSkillServiceIds = existingJob.skillServices.map(s => s.id);
+        const existingSubCategoryIds = existingJob.subCategories.map(s => s.id);
+
+        const hasArrayChanged = (arr1, arr2) => {
+            if (arr1.length !== arr2.length) return true;
+            const set = new Set(arr1);
+            return arr2.some(x => !set.has(x));
+        };
+
         const isCriticalEdit =
-
             (
-                dto.categoryId !== undefined &&
-                dto.categoryId !== existingJob.categoryId
+                dto.categoryIds !== undefined &&
+                hasArrayChanged(dto.categoryIds, existingCategoryIds)
             ) ||
-
             (
-                dto.skillServiceId !== undefined &&
-                dto.skillServiceId !== existingJob.skillServiceId
+                dto.skillServiceIds !== undefined &&
+                hasArrayChanged(dto.skillServiceIds, existingSkillServiceIds)
             ) ||
-
             (
-                dto.subCategoryId !== undefined &&
-                dto.subCategoryId !== existingJob.subCategoryId
+                dto.subCategoryIds !== undefined &&
+                hasArrayChanged(dto.subCategoryIds, existingSubCategoryIds)
             ) ||
-
             (
                 dto.latitude !== undefined &&
                 dto.latitude !== Number(existingJob.latitude)
             ) ||
-
             (
                 dto.longitude !== undefined &&
                 dto.longitude !== Number(existingJob.longitude)
             );
+
+        /*
+        |--------------------------------------------------------------------------
+        | VALIDATE CRITICAL EDITS
+        |--------------------------------------------------------------------------
+        */
+        if (isCriticalEdit) {
+            const targetCategoryIds = dto.categoryIds !== undefined ? dto.categoryIds : existingCategoryIds;
+            const targetSkillServiceIds = dto.skillServiceIds !== undefined ? dto.skillServiceIds : existingSkillServiceIds;
+            const targetSubCategoryIds = dto.subCategoryIds !== undefined ? dto.subCategoryIds : existingSubCategoryIds;
+
+            if (targetCategoryIds.length === 0) {
+                throw new BadRequestException('At least one category is required');
+            }
+            if (targetSkillServiceIds.length === 0) {
+                throw new BadRequestException('At least one skill service is required');
+            }
+
+            const categoriesDb = await this.prisma.category.findMany({
+                where: { id: { in: targetCategoryIds } },
+                select: { id: true },
+            });
+            if (categoriesDb.length !== targetCategoryIds.length) {
+                throw new BadRequestException('One or more selected categories do not exist');
+            }
+
+            const skillServicesDb = await this.prisma.skillService.findMany({
+                where: { id: { in: targetSkillServiceIds } },
+                select: { id: true, categoryId: true },
+            });
+            if (skillServicesDb.length !== targetSkillServiceIds.length) {
+                throw new BadRequestException('One or more selected skill services do not exist');
+            }
+            for (const skill of skillServicesDb) {
+                if (!targetCategoryIds.includes(skill.categoryId)) {
+                    throw new BadRequestException(`Skill service "${skill.id}" does not belong to the selected categories`);
+                }
+            }
+
+            if (targetSubCategoryIds.length > 0) {
+                const subCategoriesDb = await this.prisma.subCategory.findMany({
+                    where: { id: { in: targetSubCategoryIds } },
+                    select: { id: true, skillServiceId: true },
+                });
+                if (subCategoriesDb.length !== targetSubCategoryIds.length) {
+                    throw new BadRequestException('One or more selected subcategories do not exist');
+                }
+                for (const sub of subCategoriesDb) {
+                    if (!targetSkillServiceIds.includes(sub.skillServiceId)) {
+                        throw new BadRequestException(`Subcategory "${sub.id}" does not belong to the selected skill services`);
+                    }
+                }
+            }
+        }
 
         /*
         |--------------------------------------------------------------------------
@@ -369,19 +495,22 @@ export class JobService {
 
                 data: {
 
-                    ...(dto.categoryId !== undefined && {
-                        categoryId:
-                            dto.categoryId,
+                    ...(dto.categoryIds !== undefined && {
+                        categories: {
+                            set: dto.categoryIds.map(id => ({ id }))
+                        },
                     }),
 
-                    ...(dto.skillServiceId !== undefined && {
-                        skillServiceId:
-                            dto.skillServiceId,
+                    ...(dto.skillServiceIds !== undefined && {
+                        skillServices: {
+                            set: dto.skillServiceIds.map(id => ({ id }))
+                        },
                     }),
 
-                    ...(dto.subCategoryId !== undefined && {
-                        subCategoryId:
-                            dto.subCategoryId,
+                    ...(dto.subCategoryIds !== undefined && {
+                        subCategories: {
+                            set: dto.subCategoryIds.map(id => ({ id }))
+                        },
                     }),
 
                     ...(dto.postcode !== undefined && {
@@ -441,11 +570,11 @@ export class JobService {
 
                     attachments: true,
 
-                    category: true,
+                    categories: true,
 
-                    subCategory: true,
+                    subCategories: true,
 
-                    skillService: true,
+                    skillServices: true,
 
                     customer: {
                         select: {
@@ -634,6 +763,10 @@ export class JobService {
 
                 ...updated,
 
+                category: updated.categories[0] || null,
+                skillService: updated.skillServices[0] || null,
+                subCategory: updated.subCategories[0] || null,
+
                 attachments:
                     updated.attachments.map(
                         (attachment) => ({
@@ -700,9 +833,9 @@ export class JobService {
 
                     include: {
                         attachments: true,
-                        category: true,
-                        subCategory: true,
-                        skillService: true,
+                        categories: true,
+                        subCategories: true,
+                        skillServices: true,
 
                         selectedTrader: {
                             select: {
@@ -737,6 +870,10 @@ export class JobService {
 
             data: jobs.map((job) => ({
                 ...job,
+
+                category: job.categories[0] || null,
+                skillService: job.skillServices[0] || null,
+                subCategory: job.subCategories[0] || null,
 
                 attachments:
                     job.attachments.map(
@@ -828,9 +965,9 @@ export class JobService {
                     include: {
                         job: {
                             include: {
-                                category: true,
-                                subCategory: true,
-                                skillService: true,
+                                categories: true,
+                                subCategories: true,
+                                skillServices: true,
                                 attachments: true,
 
                                 customer: {
@@ -879,6 +1016,10 @@ export class JobService {
                 respondedAt: match.respondedAt,
 
                 ...match.job,
+
+                category: match.job.categories[0] || null,
+                skillService: match.job.skillServices[0] || null,
+                subCategory: match.job.subCategories[0] || null,
 
                 attachments:
                     match.job.attachments.map(

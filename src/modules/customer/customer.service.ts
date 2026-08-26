@@ -1033,21 +1033,21 @@ export class CustomerService {
                     },
                 },
 
-                category: {
+                categories: {
                     select: {
                         id: true,
                         name: true,
                     },
                 },
 
-                subCategory: {
+                subCategories: {
                     select: {
                         id: true,
                         name: true,
                     },
                 },
 
-                skillService: {
+                skillServices: {
                     select: {
                         id: true,
                         name: true,
@@ -1151,6 +1151,10 @@ export class CustomerService {
 
             data: {
                 ...job,
+
+                category: job.categories[0] || null,
+                skillService: job.skillServices[0] || null,
+                subCategory: job.subCategories[0] || null,
 
                 counts: {
                     quotes: job._count.quotes,

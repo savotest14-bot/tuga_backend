@@ -1,4 +1,5 @@
 import {
+  IsArray,
   IsBoolean,
   IsEnum,
   IsNumber,
@@ -24,22 +25,68 @@ import {
   ApiPropertyOptional,
 } from '@nestjs/swagger';
 
+/*
+|--------------------------------------------------------------------------
+| HELPER
+|--------------------------------------------------------------------------
+*/
+
+function parseArray(value: any): string[] {
+  if (!value) {
+    return [];
+  }
+
+  // already array
+  if (Array.isArray(value)) {
+    return value.map(item => typeof item === 'string' ? item.trim() : item).filter(Boolean);
+  }
+
+  // string handling
+  if (typeof value === 'string') {
+    // JSON array support
+    if (value.startsWith('[')) {
+      try {
+        const parsed = JSON.parse(value);
+        if (Array.isArray(parsed)) {
+          return parsed.map(item => typeof item === 'string' ? item.trim() : item).filter(Boolean);
+        }
+      } catch {
+        return [];
+      }
+    }
+
+    // comma separated support
+    return value
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  return [];
+}
+
 export class UpdateJobDto {
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ type: [String] })
   @IsOptional()
-  @IsUUID()
-  categoryId?: string;
+  @Transform(({ value }) => parseArray(value))
+  @IsArray()
+  @IsUUID(undefined, { each: true })
+  categoryIds?: string[];
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ type: [String] })
   @IsOptional()
-  @IsUUID()
-  skillServiceId?: string;
+  @Transform(({ value }) => parseArray(value))
+  @IsArray()
+  @IsUUID(undefined, { each: true })
+  skillServiceIds?: string[];
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ type: [String] })
   @IsOptional()
-  @IsUUID()
-  subCategoryId?: string;
+  @Transform(({ value }) => parseArray(value))
+  @IsArray()
+  @IsUUID(undefined, { each: true })
+  subCategoryIds?: string[];
 
   @ApiPropertyOptional()
   @IsOptional()

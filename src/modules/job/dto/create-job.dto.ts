@@ -1,4 +1,5 @@
 import {
+  IsArray,
   IsBoolean,
   IsEnum,
   IsNumber,
@@ -20,17 +21,63 @@ import {
   JobTimescale,
 } from '@prisma/client';
 
+/*
+|--------------------------------------------------------------------------
+| HELPER
+|--------------------------------------------------------------------------
+*/
+
+function parseArray(value: any): string[] {
+  if (!value) {
+    return [];
+  }
+
+  // already array
+  if (Array.isArray(value)) {
+    return value.map(item => typeof item === 'string' ? item.trim() : item).filter(Boolean);
+  }
+
+  // string handling
+  if (typeof value === 'string') {
+    // JSON array support
+    if (value.startsWith('[')) {
+      try {
+        const parsed = JSON.parse(value);
+        if (Array.isArray(parsed)) {
+          return parsed.map(item => typeof item === 'string' ? item.trim() : item).filter(Boolean);
+        }
+      } catch {
+        return [];
+      }
+    }
+
+    // comma separated support
+    return value
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  return [];
+}
+
 export class CreateJobDto {
 
-  @IsUUID()
-  categoryId: string;
+  @Transform(({ value }) => parseArray(value))
+  @IsArray()
+  @IsUUID(undefined, { each: true })
+  categoryIds: string[];
 
-  @IsUUID()
-  skillServiceId: string;
+  @Transform(({ value }) => parseArray(value))
+  @IsArray()
+  @IsUUID(undefined, { each: true })
+  skillServiceIds: string[];
 
   @IsOptional()
-  @IsUUID()
-  subCategoryId?: string;
+  @Transform(({ value }) => parseArray(value))
+  @IsArray()
+  @IsUUID(undefined, { each: true })
+  subCategoryIds?: string[];
 
   @IsOptional()
   @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)

@@ -48,16 +48,25 @@ export class JobController {
 
             properties: {
 
-                categoryId: {
-                    type: 'string',
+                categoryIds: {
+                    type: 'array',
+                    items: {
+                        type: 'string',
+                    },
                 },
 
-                skillServiceId: {
-                    type: 'string',
+                skillServiceIds: {
+                    type: 'array',
+                    items: {
+                        type: 'string',
+                    },
                 },
 
-                subCategoryId: {
-                    type: 'string',
+                subCategoryIds: {
+                    type: 'array',
+                    items: {
+                        type: 'string',
+                    },
                     nullable: true,
                 },
 
@@ -130,8 +139,8 @@ export class JobController {
             },
 
             required: [
-                'categoryId',
-                'skillServiceId',
+                'categoryIds',
+                'skillServiceIds',
                 'title',
                 'description',
                 'timescale',
@@ -181,16 +190,25 @@ export class JobController {
 
             properties: {
 
-                categoryId: {
-                    type: 'string',
+                categoryIds: {
+                    type: 'array',
+                    items: {
+                        type: 'string',
+                    },
                 },
 
-                skillServiceId: {
-                    type: 'string',
+                skillServiceIds: {
+                    type: 'array',
+                    items: {
+                        type: 'string',
+                    },
                 },
 
-                subCategoryId: {
-                    type: 'string',
+                subCategoryIds: {
+                    type: 'array',
+                    items: {
+                        type: 'string',
+                    },
                 },
 
                 postcode: {

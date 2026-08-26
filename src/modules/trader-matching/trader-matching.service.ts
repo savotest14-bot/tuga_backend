@@ -27,12 +27,21 @@ export class TraderMatchingService {
 
     const job = await this.prisma.job.findUnique({
       where: { id: jobId },
+      include: {
+        categories: true,
+        skillServices: true,
+        subCategories: true,
+      },
     });
 
     if (!job) {
       this.logger.warn(`Job ${jobId} not found, skipping match`);
       return [];
     }
+
+    const categoryIds = job.categories.map((c) => c.id);
+    const skillServiceIds = job.skillServices.map((s) => s.id);
+    const subCategoryIds = job.subCategories.map((s) => s.id);
 
     /*
     |--------------------------------------------------------------------------
@@ -93,16 +102,16 @@ export class TraderMatchingService {
       Prisma.sql`u.latitude IS NOT NULL`,
       Prisma.sql`u.longitude IS NOT NULL`,
       Prisma.sql`u.location IS NOT NULL`,
-      Prisma.sql`${job.categoryId} = ANY(tp."tradeCategories")`,
-      Prisma.sql`${job.skillServiceId} = ANY(tp."skillsServices")`,
+      Prisma.sql`tp."tradeCategories" && ${categoryIds}`,
+      Prisma.sql`tp."skillsServices" && ${skillServiceIds}`,
       // ST_DWithin uses spatial index (GIST) on u.location
       Prisma.sql`ST_DWithin(u.location, ST_SetSRID(ST_MakePoint(${job.longitude}, ${job.latitude}), 4326)::geography, ${job.currentRadiusKm * 1000}::double precision)`,
       // Temporarily exclude low response rate traders (under 30%) who are not new (totalMatchedJobs >= 8)
       Prisma.sql`NOT (COALESCE(tm."totalMatchedJobs", 0) >= 8 AND COALESCE(tm."responseRate", 0) < 0.3)`
     ];
 
-    if (job.subCategoryId) {
-      conditions.push(Prisma.sql`${job.subCategoryId} = ANY(tp."subCategories")`);
+    if (subCategoryIds.length > 0) {
+      conditions.push(Prisma.sql`tp."subCategories" && ${subCategoryIds}`);
     }
 
     const whereClause = Prisma.sql`WHERE ${Prisma.join(conditions, ' AND ')}`;

@@ -1635,21 +1635,21 @@ export class AdminService {
                             },
                         },
 
-                        category: {
+                        categories: {
                             select: {
                                 id: true,
                                 name: true,
                             },
                         },
 
-                        subCategory: {
+                        subCategories: {
                             select: {
                                 id: true,
                                 name: true,
                             },
                         },
 
-                        skillService: {
+                        skillServices: {
                             select: {
                                 id: true,
                                 name: true,
@@ -1692,6 +1692,9 @@ export class AdminService {
 
             data: jobs.map((job) => ({
                 ...job,
+                category: job.categories[0] || null,
+                skillService: job.skillServices[0] || null,
+                subCategory: job.subCategories[0] || null,
                 quotesCount:
                     job._count.quotes,
             })),
@@ -1739,21 +1742,21 @@ export class AdminService {
                     },
                 },
 
-                category: {
+                categories: {
                     select: {
                         id: true,
                         name: true,
                     },
                 },
 
-                subCategory: {
+                subCategories: {
                     select: {
                         id: true,
                         name: true,
                     },
                 },
 
-                skillService: {
+                skillServices: {
                     select: {
                         id: true,
                         name: true,
@@ -1858,6 +1861,10 @@ export class AdminService {
             data: {
                 ...job,
 
+                category: job.categories[0] || null,
+                skillService: job.skillServices[0] || null,
+                subCategory: job.subCategories[0] || null,
+
                 counts: {
                     quotes: job._count.quotes,
                     traderMatches: job._count.traderMatches,
@@ -1939,7 +1946,7 @@ export class AdminService {
                             title: true,
                             status: true,
 
-                            category: {
+                            categories: {
                                 select: {
                                     id: true,
                                     name: true,
@@ -1969,6 +1976,11 @@ export class AdminService {
 
             data: reviews.map((review) => ({
                 ...review,
+
+                job: review.job ? {
+                    ...review.job,
+                    category: review.job.categories[0] || null,
+                } : null,
 
                 proofs: review.proofs.map((proof) => ({
                     ...proof,
@@ -2036,11 +2048,11 @@ export class AdminService {
                             },
                         },
 
-                        category: true,
+                        categories: true,
 
-                        subCategory: true,
+                        subCategories: true,
 
-                        skillService: true,
+                        skillServices: true,
 
                         attachments: true,
 
@@ -2071,6 +2083,10 @@ export class AdminService {
 
             data: jobs.map((job) => ({
                 ...job,
+
+                category: job.categories[0] || null,
+                skillService: job.skillServices[0] || null,
+                subCategory: job.subCategories[0] || null,
 
                 attachments:
                     job.attachments.map(
@@ -2306,10 +2322,19 @@ export class AdminService {
     ) {
         const job = await this.prisma.job.findUnique({
             where: { id: jobId },
+            include: {
+                categories: true,
+                skillServices: true,
+                subCategories: true,
+            },
         });
         if (!job) {
             throw new NotFoundException('Job not found');
         }
+
+        const categoryIds = job.categories.map((c) => c.id);
+        const skillServiceIds = job.skillServices.map((s) => s.id);
+        const subCategoryIds = job.subCategories.map((s) => s.id);
 
         const searchRadiusKm =
             radius ?? job.currentRadiusKm;
@@ -2351,8 +2376,8 @@ export class AdminService {
             Prisma.sql`tp."verificationStatus" = 'APPROVED'`,
             Prisma.sql`tp."subscriptionStatus" IN ('TRIAL', 'ACTIVE')`,
             Prisma.sql`u.location IS NOT NULL`,
-            Prisma.sql`${job.categoryId} = ANY(tp."tradeCategories")`,
-            Prisma.sql`${job.skillServiceId} = ANY(tp."skillsServices")`,
+            Prisma.sql`tp."tradeCategories" && ${categoryIds}`,
+            Prisma.sql`tp."skillsServices" && ${skillServiceIds}`,
             Prisma.sql`ST_DWithin(
       u.location,
       ST_SetSRID(
@@ -2363,9 +2388,9 @@ export class AdminService {
     )`,
         ];
 
-        if (job.subCategoryId) {
+        if (subCategoryIds.length > 0) {
             conditions.push(
-                Prisma.sql`${job.subCategoryId} = ANY(tp."subCategories")`,
+                Prisma.sql`tp."subCategories" && ${subCategoryIds}`,
             );
         }
 
@@ -2488,21 +2513,21 @@ export class AdminService {
                                 },
                             },
 
-                            category: {
+                            categories: {
                                 select: {
                                     id: true,
                                     name: true,
                                 },
                             },
 
-                            subCategory: {
+                            subCategories: {
                                 select: {
                                     id: true,
                                     name: true,
                                 },
                             },
 
-                            skillService: {
+                            skillServices: {
                                 select: {
                                     id: true,
                                     name: true,
@@ -2528,7 +2553,15 @@ export class AdminService {
         const result = {
             message: 'Quotes fetched successfully',
 
-            data: quotes,
+            data: quotes.map((q) => ({
+                ...q,
+                job: q.job ? {
+                    ...q.job,
+                    category: q.job.categories[0] || null,
+                    skillService: q.job.skillServices[0] || null,
+                    subCategory: q.job.subCategories[0] || null,
+                } : null,
+            })),
 
             pagination: {
                 total,

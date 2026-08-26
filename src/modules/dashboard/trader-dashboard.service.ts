@@ -149,9 +149,9 @@ export class TraderDashboardService {
             include: {
                 job: {
                     include: {
-                        category: true,
-                        subCategory: true,
-                        skillService: true,
+                        categories: true,
+                        subCategories: true,
+                        skillServices: true,
                         attachments: true,
                         _count: {
                             select: {
