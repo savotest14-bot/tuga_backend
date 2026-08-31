@@ -2453,7 +2453,6 @@ export class AdminService {
             return [];
         }
         return scoredTraders
-
     }
 
     async getAllQuotes(

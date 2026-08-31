@@ -1259,14 +1259,22 @@ export class JobService {
                     |--------------------------------------------------------------------------
                     */
 
-                    await tx.traderMetrics.update({
+                    await tx.traderMetrics.upsert({
                         where: {
-                            traderId:
-                                job.selectedTraderId!,
+                            traderId: job.selectedTraderId!,
                         },
-
-                        data: {
-
+                        create: {
+                            traderId: job.selectedTraderId!,
+                            completedJobs: 1,
+                            invitesCount: 0,
+                            responsesCount: 0,
+                            responseRate: 0,
+                            averageRating: 0,
+                            totalReviews: 0,
+                            recentLeads: 0,
+                            totalMatchedJobs: 0,
+                        },
+                        update: {
                             completedJobs: {
                                 increment: 1,
                             },

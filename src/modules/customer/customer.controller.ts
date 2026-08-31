@@ -190,4 +190,11 @@ export class CustomerController {
         return this.customerService.getJobDetails(id);
     }
 
+  @Get('interacted-traders')
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Get traders that have interacted with the customer via chat or quote' })
+  async getInteractedTraders(@Req() req: Request) {
+      return this.customerService.getInteractedTraders(req['user'].id);
+  }
+
 }

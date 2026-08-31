@@ -1407,6 +1407,12 @@ export class AuthService {
             );
         }
 
+        if (user.status === 'INACTIVE') {
+            throw new UnauthorizedException(
+                'Account inactive, please contact support',
+            );
+        }
+
         // Trader rejected check
         if (
             user.role === Role.TRADER &&
@@ -1504,6 +1510,40 @@ export class AuthService {
         return {
             message:
                 'Logout successful',
+        };
+    }
+
+    async deactivateAccount(userId: string) {
+        const user = await this.prisma.user.findUnique({
+            where: { id: userId },
+        });
+
+        if (!user) {
+            throw new BadRequestException('User not found');
+        }
+
+        if (user.status === 'INACTIVE') {
+            throw new BadRequestException('Account is already deactivated');
+        }
+
+        await this.prisma.user.update({
+            where: { id: userId },
+            data: {
+                status: 'INACTIVE',
+                token: null,
+            },
+        });
+
+        await Promise.all([
+            this.redisService.del(`admin:user-details:${userId}`),
+            this.redisService.del(`profile:${userId}`),
+            this.redisService.deleteByPattern('customers:*'),
+            this.redisService.deleteByPattern('traders:*'),
+            this.redisService.del(`registration-status:${userId}`),
+        ]);
+
+        return {
+            message: 'Account deactivated successfully',
         };
     }
 

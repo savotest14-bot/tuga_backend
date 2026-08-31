@@ -338,7 +338,7 @@ export class TraderDashboardService {
                 trendChange: ratingTrend,
             },
             responseRate: {
-                value: Math.round(responseRate),
+                value: Math.round(responseRate * 100),
                 trendPercentage: responseRateTrend,
             },
         };

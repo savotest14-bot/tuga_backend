@@ -108,6 +108,10 @@ export class AuthModule
           method: RequestMethod.POST,
         },
         {
+          path: 'auth/deactivate',
+          method: RequestMethod.POST,
+        },
+        {
           path: 'auth/getMyProfile',
           method: RequestMethod.GET,
         },

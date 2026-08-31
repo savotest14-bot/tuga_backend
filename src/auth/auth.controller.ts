@@ -241,6 +241,13 @@ export class AuthController {
     );
   }
 
+  @ApiBearerAuth('access-token')
+  @Post('deactivate')
+  @ApiOperation({ summary: 'Deactivate current user account' })
+  async deactivateAccount(@Req() req: Request) {
+      return this.authService.deactivateAccount(req['user'].id);
+  }
+
   @Post('forgot-password')
   forgotPassword(
     @Body() body: ForgotPasswordDto,

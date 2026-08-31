@@ -320,6 +320,7 @@ export class TraderMatchingService {
         distanceKm: item.distanceKm,
         score: item.finalScore,
       });
+      await this.recalculateResponseRate(item.traderId);
       this.traderDashboardService.emitDashboardUpdate(item.traderId);
     }
 
@@ -351,5 +352,23 @@ export class TraderMatchingService {
 
   private toRad(value: number) {
     return (value * Math.PI) / 180;
+  }
+
+  private async recalculateResponseRate(traderId: string) {
+    const metrics = await this.prisma.traderMetrics.findUnique({
+      where: { traderId },
+    });
+    if (!metrics) return;
+
+    const responseRate = metrics.invitesCount > 0
+      ? (metrics.responsesCount / metrics.invitesCount)
+      : 0;
+
+    await this.prisma.traderMetrics.update({
+      where: { traderId },
+      data: {
+        responseRate: parseFloat(responseRate.toFixed(2)),
+      },
+    });
   }
 }

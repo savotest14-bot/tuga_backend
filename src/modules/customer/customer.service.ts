@@ -1171,4 +1171,72 @@ export class CustomerService {
         return result;
     }
 
+    async getInteractedTraders(customerId: string) {
+        // 1. Get trader IDs from conversations
+        const chatTraders = await this.prisma.conversation.findMany({
+            where: { customerId },
+            select: { traderId: true },
+        });
+
+        // 2. Get trader IDs from quotes
+        const quoteTraders = await this.prisma.quote.findMany({
+            where: {
+                job: {
+                    customerId,
+                },
+            },
+            select: { traderId: true },
+        });
+
+        const traderIds = [
+            ...new Set([
+                ...chatTraders.map((c) => c.traderId),
+                ...quoteTraders.map((q) => q.traderId),
+            ]),
+        ];
+
+        // 3. Fetch Trader details
+        const traders = await this.prisma.user.findMany({
+            where: {
+                id: { in: traderIds },
+                role: 'TRADER',
+            },
+            select: {
+                id: true,
+                fullName: true,
+                email: true,
+                phone: true,
+                profileImage: true,
+                traderProfile: {
+                    select: {
+                        id: true,
+                        companyName: true,
+                        companyType: true,
+                        registrationNumber: true,
+                        logo: true,
+                        location: true,
+                        tradeCategories: true,
+                    },
+                },
+            },
+        });
+
+        // 4. Format response
+        return {
+            success: true,
+            data: traders.map((t) => ({
+                traderId: t.id,
+                fullName: t.fullName,
+                email: t.email,
+                phone: t.phone,
+                profileImage: t.profileImage ? `${process.env.APP_URL}/${t.profileImage}` : null,
+                companyName: t.traderProfile?.companyName || null,
+                companyType: t.traderProfile?.companyType || null,
+                logo: t.traderProfile?.logo ? `${process.env.APP_URL}/${t.traderProfile.logo}` : null,
+                location: t.traderProfile?.location || null,
+                tradeCategories: t.traderProfile?.tradeCategories || [],
+            })),
+        };
+    }
+
 }
