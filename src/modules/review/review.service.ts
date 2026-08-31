@@ -936,6 +936,8 @@ export class ReviewService {
                     completedJobs: 0,
                     responseRate: 0,
                     bayesianRating: 0,
+                    cancelledJobs: 0,
+                    closedJobs: 0,
                 },
         };
 

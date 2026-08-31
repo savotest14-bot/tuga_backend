@@ -348,6 +348,8 @@ model TraderMetrics {
   recentLeadsResetAt DateTime @default(now())
   completedJobs Int @default(0)
   totalMatchedJobs Int @default(0)
+  cancelledJobs Int @default(0)
+  closedJobs Int @default(0)
   trader User @relation(fields: [traderId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

@@ -630,6 +630,10 @@ export class QuoteService {
                                 recentLeads: 0,
 
                                 totalMatchedJobs: 0,
+
+                                cancelledJobs: 0,
+
+                                closedJobs: 0,
                             },
 
                             update: {

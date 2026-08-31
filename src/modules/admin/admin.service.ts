@@ -2205,6 +2205,8 @@ export class AdminService {
                             averageRating: 0,
                             totalReviews: 0,
                             completedJobs: 0,
+                            cancelledJobs: 0,
+                            closedJobs: 0,
                         },
 
                         update: {

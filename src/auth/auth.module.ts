@@ -136,7 +136,6 @@ export class AuthModule
           method: RequestMethod.PUT,
         },
       );
-
   }
 
 }

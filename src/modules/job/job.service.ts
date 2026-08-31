@@ -1394,15 +1394,45 @@ export class JobService {
         */
 
         const updatedJob =
-            await this.prisma.job.update({
-                where: {
-                    id: jobId,
-                },
+            await this.prisma.$transaction(async (tx) => {
+                const updated = await tx.job.update({
+                    where: {
+                        id: jobId,
+                    },
 
-                data: {
-                    status:
-                        JobStatus.CANCELLED,
-                },
+                    data: {
+                        status:
+                            JobStatus.CANCELLED,
+                    },
+                });
+
+                if (job.selectedTraderId) {
+                    await tx.traderMetrics.upsert({
+                        where: {
+                            traderId: job.selectedTraderId,
+                        },
+                        create: {
+                            traderId: job.selectedTraderId,
+                            cancelledJobs: 1,
+                            completedJobs: 0,
+                            invitesCount: 0,
+                            responsesCount: 0,
+                            responseRate: 0,
+                            averageRating: 0,
+                            totalReviews: 0,
+                            recentLeads: 0,
+                            totalMatchedJobs: 0,
+                            closedJobs: 0,
+                        },
+                        update: {
+                            cancelledJobs: {
+                                increment: 1,
+                            },
+                        },
+                    });
+                }
+
+                return updated;
             });
 
         /*
@@ -1817,22 +1847,43 @@ export class JobService {
             );
         }
 
-        await this.prisma.job.update({
-            where: { id: jobId },
-            data: {
-                distributionStatus: 'COMPLETED',
-                status: 'CLOSED', // if supported by your enum
-            },
-        });
-
-        // Optional: prevent future escalation processing
-        await this.prisma.job.update({
-            where: { id: jobId },
-            data: {
-                escalationVersion: {
-                    increment: 1,
+        await this.prisma.$transaction(async (tx) => {
+            const updated = await tx.job.update({
+                where: { id: jobId },
+                data: {
+                    distributionStatus: 'COMPLETED',
+                    status: 'CLOSED', // if supported by your enum
+                    escalationVersion: {
+                        increment: 1,
+                    },
                 },
-            },
+            });
+
+            if (updated.selectedTraderId) {
+                await tx.traderMetrics.upsert({
+                    where: {
+                        traderId: updated.selectedTraderId,
+                    },
+                    create: {
+                        traderId: updated.selectedTraderId,
+                        closedJobs: 1,
+                        completedJobs: 0,
+                        invitesCount: 0,
+                        responsesCount: 0,
+                        responseRate: 0,
+                        averageRating: 0,
+                        totalReviews: 0,
+                        recentLeads: 0,
+                        totalMatchedJobs: 0,
+                        cancelledJobs: 0,
+                    },
+                    update: {
+                        closedJobs: {
+                            increment: 1,
+                        },
+                    },
+                });
+            }
         });
 
         // Audit log
@@ -1916,19 +1967,50 @@ export class JobService {
             );
         }
 
-        const updatedJob = await this.prisma.job.update({
-            where: {
-                id: jobId,
-            },
-            data: {
-                distributionStatus: 'COMPLETED',
-                status: 'CLOSED',
-                isWorkCarriedOut: dto.isWorkCarriedOut,
-                cancelReason: dto.isWorkCarriedOut ? null : dto.cancelReason,
-                escalationVersion: {
-                    increment: 1,
+        const updatedJob = await this.prisma.$transaction(async (tx) => {
+            const updated = await tx.job.update({
+                where: {
+                    id: jobId,
                 },
-            },
+                data: {
+                    distributionStatus: 'COMPLETED',
+                    status: 'CLOSED',
+                    isWorkCarriedOut: dto.isWorkCarriedOut,
+                    cancelReason: dto.isWorkCarriedOut ? null : dto.cancelReason,
+                    escalationVersion: {
+                        increment: 1,
+                    },
+                },
+            });
+
+            if (updated.selectedTraderId) {
+                const metricField = dto.isWorkCarriedOut ? 'closedJobs' : 'cancelledJobs';
+                await tx.traderMetrics.upsert({
+                    where: {
+                        traderId: updated.selectedTraderId,
+                    },
+                    create: {
+                        traderId: updated.selectedTraderId,
+                        closedJobs: dto.isWorkCarriedOut ? 1 : 0,
+                        cancelledJobs: dto.isWorkCarriedOut ? 0 : 1,
+                        completedJobs: 0,
+                        invitesCount: 0,
+                        responsesCount: 0,
+                        responseRate: 0,
+                        averageRating: 0,
+                        totalReviews: 0,
+                        recentLeads: 0,
+                        totalMatchedJobs: 0,
+                    },
+                    update: {
+                        [metricField]: {
+                            increment: 1,
+                        },
+                    },
+                });
+            }
+
+            return updated;
         });
 
         await Promise.all([
