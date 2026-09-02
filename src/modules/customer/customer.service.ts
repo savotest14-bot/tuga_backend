@@ -525,6 +525,7 @@ export class CustomerService {
                                     skillsServices: true,
                                     subCategories: true,
                                     companyName: true,
+                                    displayName: true,
                                     companyType: true,
                                     registrationNumber: true,
                                     workRadius: true,
@@ -1211,6 +1212,7 @@ export class CustomerService {
                     select: {
                         id: true,
                         companyName: true,
+                        displayName: true,
                         companyType: true,
                         registrationNumber: true,
                         logo: true,

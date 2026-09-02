@@ -5,12 +5,14 @@ import {
   Get,
   Patch,
   Post,
+  Put,
   Req,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { SubscriptionsService } from './subscriptions.service';
 import { ChangePlanDto } from './dto/change-plan.dto';
+import { TraderCategorySelectionDto } from './dto/trader-category-selection.dto';
 
 @ApiTags('Subscriptions')
 @ApiBearerAuth('access-token')
@@ -76,5 +78,23 @@ export class SubscriptionsController {
   })
   async processRenewals() {
     return this.subscriptionsService.processRenewals();
+  }
+
+  /*
+  |--------------------------------------------------------------------------
+  | TRADER SUBSCRIPTION CATEGORY SELECTION
+  |--------------------------------------------------------------------------
+  */
+  @Put('category-selection')
+  @Put('trader/category-selection')
+  @ApiOperation({
+    summary: 'Update category selection when switching or downgrading subscription plan',
+  })
+  async updateCategorySelection(
+    @Req() req: Request,
+    @Body() dto: TraderCategorySelectionDto,
+  ) {
+    const userId = (req as any).user.id;
+    return this.subscriptionsService.updateTraderCategorySelection(userId, dto);
   }
 }

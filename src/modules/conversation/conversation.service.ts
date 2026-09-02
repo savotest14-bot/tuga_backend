@@ -120,6 +120,106 @@ export class ConversationService {
     });
   }
 
+  async createTraderConversation(
+    customerId: string,
+    traderId: string,
+    jobId?: string,
+  ) {
+    /*
+    |--------------------------------------------------------------------------
+    | JOB CHAT
+    |--------------------------------------------------------------------------
+    */
+    if (jobId) {
+      // Find any existing conversation between this customer and trader
+      const existingConversation = await this.prisma.conversation.findFirst({
+        where: {
+          customerId,
+          traderId,
+        },
+        include: {
+          customer: true,
+          trader: true,
+          job: true,
+        },
+      });
+
+      if (existingConversation) {
+        // If it's already a JOB conversation with the same jobId, just return it
+        if (existingConversation.type === 'JOB' && existingConversation.jobId === jobId) {
+          return existingConversation;
+        }
+
+        // Otherwise (it's DIRECT or a different JOB), update it to the new jobId
+        return this.prisma.conversation.update({
+          where: {
+            id: existingConversation.id,
+          },
+          data: {
+            type: 'JOB',
+            jobId,
+          },
+          include: {
+            customer: true,
+            trader: true,
+            job: true,
+          },
+        });
+      }
+
+      // No existing conversation -> create new JOB conversation
+      return this.prisma.conversation.create({
+        data: {
+          customerId,
+          traderId,
+          jobId,
+          type: 'JOB',
+        },
+        include: {
+          customer: true,
+          trader: true,
+          job: true,
+        },
+      });
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | DIRECT CHAT
+    |--------------------------------------------------------------------------
+    */
+
+    const existingDirect = await this.prisma.conversation.findFirst({
+      where: {
+        customerId,
+        traderId,
+        type: 'DIRECT',
+      },
+      include: {
+        customer: true,
+        trader: true,
+        job: true,
+      },
+    });
+
+    if (existingDirect) {
+      return existingDirect;
+    }
+
+    return this.prisma.conversation.create({
+      data: {
+        customerId,
+        traderId,
+        type: 'DIRECT',
+      },
+      include: {
+        customer: true,
+        trader: true,
+        job: true,
+      },
+    });
+  }
+
   /*
   |--------------------------------------------------------------------------
   | GET MY CONVERSATIONS

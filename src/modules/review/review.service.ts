@@ -1495,6 +1495,7 @@ export class ReviewService {
                             traderProfile: {
                                 select: {
                                     companyName: true,
+                                    displayName: true,
                                     tradeCategories: true,
                                     skillsServices: true,
                                     subCategories: true,

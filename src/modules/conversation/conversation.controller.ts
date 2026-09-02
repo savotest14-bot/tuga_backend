@@ -49,6 +49,26 @@ export class ConversationController {
                 body.jobId,
             );
     }
+    @Post('trader/:customerId')
+    @ApiBearerAuth('access-token')
+    async createTraderConversation(
+
+        @Req()
+        req: Request,
+
+        @Param('customerId', ParseUUIDPipe)
+        customerId: string,
+
+        @Body()
+        body: CreateConversationDto,
+    ) {
+        return this.conversationService
+            .createTraderConversation(
+                customerId,
+                req['user'].id,
+                body.jobId,
+            );
+    }
     @Get()
     @ApiBearerAuth('access-token')
     async getMyConversations(

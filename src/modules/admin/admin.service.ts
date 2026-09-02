@@ -304,6 +304,7 @@ export class AdminService {
                             select: {
                                 id: true,
                                 companyName: true,
+                                displayName: true,
                                 companyType: true,
                                 tradeCategories: true,
                                 skillsServices: true,

@@ -707,7 +707,7 @@ export class QuoteService {
                 this.socketService.emitToUser(job.customerId, 'jobUpdated', updatedJob);
                 this.socketService.emitToRoom('admins', 'jobUpdated', updatedJob);
             }
-        }).catch(() => {});
+        }).catch(() => { });
 
         this.traderDashboardService.emitDashboardUpdate(traderId);
         this.customerDashboardService.emitDashboardUpdate(job.customerId);
@@ -1338,6 +1338,7 @@ export class QuoteService {
                             traderProfile: {
                                 select: {
                                     companyName: true,
+                                    displayName: true,
                                     workRadius: true,
                                 },
                             },
@@ -1591,15 +1592,15 @@ export class QuoteService {
                         status: QuoteStatus.PENDING, // Reset status to PENDING
                         ...(files && files.length > 0
                             ? {
-                                  attachments: {
-                                      create: files.map((file) => ({
-                                          file: `uploads/quotes/${file.filename}`,
-                                          filename: file.originalname,
-                                          mimeType: file.mimetype,
-                                          size: file.size,
-                                      })),
-                                  },
-                              }
+                                attachments: {
+                                    create: files.map((file) => ({
+                                        file: `uploads/quotes/${file.filename}`,
+                                        filename: file.originalname,
+                                        mimeType: file.mimetype,
+                                        size: file.size,
+                                    })),
+                                },
+                            }
                             : {}),
                     },
                     include: {
@@ -1728,6 +1729,134 @@ export class QuoteService {
         return {
             message: wasRejected ? 'Quote resubmitted successfully' : 'Quote updated successfully',
             data: quotePayload,
+        };
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | WITHDRAW QUOTE
+    |--------------------------------------------------------------------------
+    */
+    async withdrawQuote(
+        traderId: string,
+        quoteId: string,
+    ) {
+        const quote = await this.prisma.quote.findUnique({
+            where: { id: quoteId },
+            include: {
+                job: true,
+                attachments: true,
+            },
+        });
+
+        if (!quote) {
+            throw new NotFoundException('Quote not found');
+        }
+
+        if (quote.traderId !== traderId) {
+            throw new ForbiddenException('You are not allowed to withdraw this quote');
+        }
+
+        if (quote.status === QuoteStatus.ACCEPTED) {
+            throw new BadRequestException('Cannot withdraw a quote that has already been accepted');
+        }
+
+        const job = quote.job;
+        if (
+            job.status === JobStatus.ASSIGNED ||
+            job.status === JobStatus.COMPLETED ||
+            job.status === JobStatus.CANCELLED
+        ) {
+            throw new BadRequestException('Cannot withdraw quote for a job that is assigned, completed, or cancelled');
+        }
+
+        const existingAttachments = quote.attachments || [];
+
+        const { updatedJob } = await this.prisma.$transaction(async (tx) => {
+            // Delete attachments and quote
+            await tx.quoteAttachment.deleteMany({
+                where: { quoteId },
+            });
+
+            await tx.quote.delete({
+                where: { id: quoteId },
+            });
+
+            // Reset job match status
+            await tx.jobTraderMatch.updateMany({
+                where: {
+                    jobId: quote.jobId,
+                    traderId: quote.traderId,
+                },
+                data: {
+                    status: JobMatchStatus.VIEWED,
+                    isQuoteSubmitted: false,
+                },
+            });
+
+            // Decrement job quote count
+            const newQuotesCount = Math.max(0, job.quotesReceived - 1);
+            const newJobStatus = newQuotesCount === 0 ? JobStatus.POSTED : JobStatus.QUOTE_RECEIVED;
+
+            const updatedJob = await tx.job.update({
+                where: { id: quote.jobId },
+                data: {
+                    quotesReceived: newQuotesCount,
+                    status: newJobStatus,
+                },
+            });
+
+            return { updatedJob };
+        });
+
+        // Cleanup local server files if attachments existed
+        if (existingAttachments.length > 0) {
+            for (const attachment of existingAttachments) {
+                try {
+                    const filePath = path.join(process.cwd(), attachment.file);
+                    await fs.unlink(filePath);
+                } catch (error) {
+                    this.logger.warn(`Failed to delete quote attachment file ${attachment.file}: ${error.message}`);
+                }
+            }
+        }
+
+        // Redis cache invalidation
+        await Promise.all([
+            this.redisService.deleteByPattern(`trader:matched-jobs:${traderId}:*`),
+            this.redisService.del(`job:quotes:${quote.jobId}`),
+            this.redisService.deleteByPattern(`trader:quotes:${traderId}:*`),
+            this.redisService.del(`trader:quote:${traderId}:job:${quote.jobId}`),
+            this.redisService.deleteByPattern('admin:jobs:*'),
+            this.redisService.deleteByPattern('admin:quotes:*'),
+            this.redisService.deleteByPattern(`customer:jobs:${job.customerId}:*`),
+            this.redisService.flushAll(),
+        ]);
+
+        // Notifications & WebSockets
+        this.notificationService.createNotification(
+            job.customerId,
+            'Quote Withdrawn',
+            `A trader withdrew their quote for "${job.title}"`,
+            'QUOTE_WITHDRAWN',
+            { jobId: quote.jobId, quoteId },
+        ).catch(err => {
+            this.logger.warn(`Failed to send notification for withdrawn quote: ${err.message}`);
+        });
+
+        this.socketService.emitToUser(job.customerId, 'quoteWithdrawn', { quoteId, jobId: quote.jobId });
+        this.socketService.emitToUser(traderId, 'quoteWithdrawn', { quoteId, jobId: quote.jobId });
+        this.socketService.emitToUser(job.customerId, 'jobUpdated', updatedJob);
+        this.socketService.emitToUser(traderId, 'jobUpdated', updatedJob);
+        this.socketService.emitToRoom('admins', 'jobUpdated', updatedJob);
+
+        this.customerDashboardService.emitDashboardUpdate(job.customerId);
+        this.traderDashboardService.emitDashboardUpdate(traderId);
+
+        return {
+            message: 'Quote withdrawn successfully',
+            quoteId,
+            jobId: quote.jobId,
         };
     }
 }

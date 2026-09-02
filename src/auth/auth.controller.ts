@@ -70,6 +70,10 @@ export class AuthController {
           type: 'string',
           example: 'ABC Plumbing Ltd',
         },
+        displayName: {
+          type: 'string',
+          example: 'ABC Plumbing',
+        },
         companyType: {
           type: 'string',
           example: 'Private Limited',
@@ -245,7 +249,7 @@ export class AuthController {
   @Post('deactivate')
   @ApiOperation({ summary: 'Deactivate current user account' })
   async deactivateAccount(@Req() req: Request) {
-      return this.authService.deactivateAccount(req['user'].id);
+    return this.authService.deactivateAccount(req['user'].id);
   }
 
   @Post('forgot-password')
@@ -350,6 +354,11 @@ export class AuthController {
         companyName: {
           type: 'string',
           example: 'ABC Traders',
+        },
+
+        displayName: {
+          type: 'string',
+          example: 'ABC Plumbing',
         },
 
         companyType: {

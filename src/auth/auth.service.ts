@@ -352,6 +352,9 @@ export class AuthService {
                 companyName:
                     data.companyName,
 
+                displayName:
+                    data.displayName,
+
                 companyType:
                     data.companyType,
 
@@ -953,6 +956,7 @@ export class AuthService {
 
                     // Step 2
                     companyName: true,
+                    displayName: true,
                     companyType: true,
                     registrationNumber: true,
                     about: true,
@@ -1004,6 +1008,9 @@ export class AuthService {
 
             companyName:
                 !!trader.companyName,
+
+            displayName:
+                !!trader.displayName,
 
             companyType:
                 !!trader.companyType,
@@ -2210,6 +2217,7 @@ export class AuthService {
 
             if (user.role === 'TRADER') {
                 if (body.companyName !== undefined) traderData.companyName = body.companyName;
+                if (body.displayName !== undefined) traderData.displayName = body.displayName;
                 if (body.companyType !== undefined) traderData.companyType = body.companyType;
                 if (body.registrationNumber !== undefined) traderData.registrationNumber = body.registrationNumber;
                 if (body.workRadius !== undefined) traderData.workRadius = body.workRadius;
@@ -2456,6 +2464,7 @@ export class AuthService {
                 this.redisService.del(
                     `registration-status:${userId}`,
                 ),
+                this.redisService.flushAll(),
             ]);
 
             return { message: 'Profile updated successfully' };

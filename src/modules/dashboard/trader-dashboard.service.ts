@@ -43,6 +43,7 @@ export class TraderDashboardService {
         const welcome = {
             fullName: user.fullName || '',
             companyName: trader.companyName || user.fullName || 'JS Services',
+            displayName: trader.displayName || '',
         };
 
         // 3. Profile Completeness and Status (Sidebar)

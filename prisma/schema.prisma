@@ -172,6 +172,8 @@ model TraderProfile {
   // Company Details
   companyName String?
 
+  displayName String?
+
   companyType String?
 
   registrationNumber String?

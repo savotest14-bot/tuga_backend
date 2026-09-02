@@ -1,6 +1,7 @@
 import {
     Body,
     Controller,
+    Delete,
     Get,
     Param,
     Post,
@@ -229,6 +230,28 @@ export class QuoteController {
             quoteId,
             dto,
             files?.attachments || [],
+        );
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | WITHDRAW QUOTE
+    |--------------------------------------------------------------------------
+    */
+
+    @Delete(':quoteId')
+    @Post('withdraw/:quoteId')
+    @Delete('withdraw/:quoteId')
+    @ApiBearerAuth('access-token')
+    async withdrawQuote(
+        @Req() req: Request,
+
+        @Param('quoteId', ParseUUIDPipe)
+        quoteId: string,
+    ) {
+        return this.quoteService.withdrawQuote(
+            req['user'].id,
+            quoteId,
         );
     }
 }

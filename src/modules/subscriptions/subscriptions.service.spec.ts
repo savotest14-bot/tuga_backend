@@ -151,6 +151,18 @@ describe('SubscriptionsService - Complete Scenario Testing', () => {
 
   beforeEach(async () => {
     const mockPrisma = {
+      user: {
+        findUnique: jest.fn(),
+      },
+      category: {
+        findMany: jest.fn(),
+      },
+      skillService: {
+        findMany: jest.fn(),
+      },
+      subCategory: {
+        findMany: jest.fn(),
+      },
       traderProfile: {
         findUnique: jest.fn(),
         update: jest.fn(),
@@ -176,6 +188,8 @@ describe('SubscriptionsService - Complete Scenario Testing', () => {
       get: jest.fn(),
       set: jest.fn(),
       del: jest.fn(),
+      deleteByPattern: jest.fn(),
+      flushAll: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -825,6 +839,204 @@ describe('SubscriptionsService - Complete Scenario Testing', () => {
           amount: 200.0,
         }),
       });
+    });
+  });
+
+  describe('updateTraderCategorySelection', () => {
+    const mockUserId = 'user-uuid-1';
+    const mockTraderProfileId = 'trader-uuid-1';
+
+    const mockTraderUser = {
+      id: mockUserId,
+      role: 'TRADER',
+      traderProfile: {
+        id: mockTraderProfileId,
+        userId: mockUserId,
+        tradeCategories: ['cat-1'],
+        skillsServices: ['skill-1'],
+        subCategories: ['sub-1'],
+      },
+    };
+
+    const mockBronzePlan = {
+      id: 'plan-bronze',
+      name: 'BRONZE' as any,
+      maxTrades: 1,
+      unlimitedTrades: false,
+      isActive: true,
+    };
+
+    const mockSilverPlan = {
+      id: 'plan-silver',
+      name: 'SILVER' as any,
+      maxTrades: 3,
+      unlimitedTrades: false,
+      isActive: true,
+    };
+
+    const mockGoldPlan = {
+      id: 'plan-gold',
+      name: 'GOLD' as any,
+      maxTrades: 9999,
+      unlimitedTrades: true,
+      isActive: true,
+    };
+
+    it('1. Bronze plan with 1 category should succeed', async () => {
+      (prismaService.user.findUnique as jest.Mock).mockResolvedValue(mockTraderUser);
+      (prismaService.subscriptionPlan.findUnique as jest.Mock).mockResolvedValue(mockBronzePlan);
+      (prismaService.category.findMany as jest.Mock).mockResolvedValue([{ id: 'cat-1' }]);
+      (prismaService.skillService.findMany as jest.Mock).mockResolvedValue([]);
+      (prismaService.subCategory.findMany as jest.Mock).mockResolvedValue([]);
+
+      const result = await service.updateTraderCategorySelection(mockUserId, {
+        planId: 'plan-bronze',
+        tradeCategories: ['cat-1'],
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.plan.maxCategories).toBe(1);
+      expect(result.selection.tradeCategories).toEqual(['cat-1']);
+    });
+
+    it('2. Bronze -> Silver with 3 categories should succeed', async () => {
+      (prismaService.user.findUnique as jest.Mock).mockResolvedValue(mockTraderUser);
+      (prismaService.subscriptionPlan.findUnique as jest.Mock).mockResolvedValue(mockSilverPlan);
+      (prismaService.category.findMany as jest.Mock).mockResolvedValue([{ id: 'cat-1' }, { id: 'cat-2' }, { id: 'cat-3' }]);
+
+      const result = await service.updateTraderCategorySelection(mockUserId, {
+        planId: 'plan-silver',
+        tradeCategories: ['cat-1', 'cat-2', 'cat-3'],
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.selection.tradeCategories.length).toBe(3);
+    });
+
+    it('3. Silver -> Gold with more than 3 categories should succeed', async () => {
+      (prismaService.user.findUnique as jest.Mock).mockResolvedValue(mockTraderUser);
+      (prismaService.subscriptionPlan.findUnique as jest.Mock).mockResolvedValue(mockGoldPlan);
+      (prismaService.category.findMany as jest.Mock).mockResolvedValue([
+        { id: 'cat-1' }, { id: 'cat-2' }, { id: 'cat-3' }, { id: 'cat-4' },
+      ]);
+
+      const result = await service.updateTraderCategorySelection(mockUserId, {
+        planId: 'plan-gold',
+        tradeCategories: ['cat-1', 'cat-2', 'cat-3', 'cat-4'],
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.plan.unlimited).toBe(true);
+    });
+
+    it('4. Gold -> Silver with 4 categories should return requiresCategorySelection: true', async () => {
+      (prismaService.user.findUnique as jest.Mock).mockResolvedValue(mockTraderUser);
+      (prismaService.subscriptionPlan.findUnique as jest.Mock).mockResolvedValue(mockSilverPlan);
+
+      const result = await service.updateTraderCategorySelection(mockUserId, {
+        planId: 'plan-silver',
+        tradeCategories: ['cat-1', 'cat-2', 'cat-3', 'cat-4'],
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.requiresCategorySelection).toBe(true);
+      expect(result.maxCategories).toBe(3);
+      expect(result.currentCategoryCount).toBe(4);
+    });
+
+    it('5. Gold -> Silver with exactly 3 categories should succeed', async () => {
+      (prismaService.user.findUnique as jest.Mock).mockResolvedValue(mockTraderUser);
+      (prismaService.subscriptionPlan.findUnique as jest.Mock).mockResolvedValue(mockSilverPlan);
+      (prismaService.category.findMany as jest.Mock).mockResolvedValue([{ id: 'cat-1' }, { id: 'cat-2' }, { id: 'cat-3' }]);
+
+      const result = await service.updateTraderCategorySelection(mockUserId, {
+        planId: 'plan-silver',
+        tradeCategories: ['cat-1', 'cat-2', 'cat-3'],
+      });
+
+      expect(result.success).toBe(true);
+    });
+
+    it('6. Duplicate category IDs should be de-duplicated', async () => {
+      (prismaService.user.findUnique as jest.Mock).mockResolvedValue(mockTraderUser);
+      (prismaService.subscriptionPlan.findUnique as jest.Mock).mockResolvedValue(mockBronzePlan);
+      (prismaService.category.findMany as jest.Mock).mockResolvedValue([{ id: 'cat-1' }]);
+
+      const result = await service.updateTraderCategorySelection(mockUserId, {
+        planId: 'plan-bronze',
+        tradeCategories: ['cat-1', 'cat-1', 'cat-1'],
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.selection.tradeCategories).toEqual(['cat-1']);
+    });
+
+    it('7. Invalid category ID should throw BadRequestException', async () => {
+      (prismaService.user.findUnique as jest.Mock).mockResolvedValue(mockTraderUser);
+      (prismaService.subscriptionPlan.findUnique as jest.Mock).mockResolvedValue(mockSilverPlan);
+      (prismaService.category.findMany as jest.Mock).mockResolvedValue([]);
+
+      await expect(
+        service.updateTraderCategorySelection(mockUserId, {
+          planId: 'plan-silver',
+          tradeCategories: ['non-existent-cat'],
+        }),
+      ).rejects.toThrow('One or more selected trade categories do not exist');
+    });
+
+    it('8. Service belonging to another category should throw BadRequestException', async () => {
+      (prismaService.user.findUnique as jest.Mock).mockResolvedValue(mockTraderUser);
+      (prismaService.subscriptionPlan.findUnique as jest.Mock).mockResolvedValue(mockSilverPlan);
+      (prismaService.category.findMany as jest.Mock).mockResolvedValue([{ id: 'cat-1' }]);
+      (prismaService.skillService.findMany as jest.Mock).mockResolvedValue([{ id: 'skill-99', categoryId: 'cat-other' }]);
+
+      await expect(
+        service.updateTraderCategorySelection(mockUserId, {
+          planId: 'plan-silver',
+          tradeCategories: ['cat-1'],
+          skillsServices: ['skill-99'],
+        }),
+      ).rejects.toThrow('Skill service "skill-99" does not belong to the selected trade categories');
+    });
+
+    it('9. Subcategory belonging to another service should throw BadRequestException', async () => {
+      (prismaService.user.findUnique as jest.Mock).mockResolvedValue(mockTraderUser);
+      (prismaService.subscriptionPlan.findUnique as jest.Mock).mockResolvedValue(mockSilverPlan);
+      (prismaService.category.findMany as jest.Mock).mockResolvedValue([{ id: 'cat-1' }]);
+      (prismaService.skillService.findMany as jest.Mock).mockResolvedValue([{ id: 'skill-1', categoryId: 'cat-1' }]);
+      (prismaService.subCategory.findMany as jest.Mock).mockResolvedValue([{ id: 'sub-99', skillServiceId: 'skill-other' }]);
+
+      await expect(
+        service.updateTraderCategorySelection(mockUserId, {
+          planId: 'plan-silver',
+          tradeCategories: ['cat-1'],
+          skillsServices: ['skill-1'],
+          subCategories: ['sub-99'],
+        }),
+      ).rejects.toThrow('Subcategory "sub-99" does not belong to the selected skill services');
+    });
+
+    it('10. Non-existent trader profile should throw NotFoundException', async () => {
+      (prismaService.user.findUnique as jest.Mock).mockResolvedValue(null);
+
+      await expect(
+        service.updateTraderCategorySelection('non-existent-user', {
+          planId: 'plan-silver',
+          tradeCategories: ['cat-1'],
+        }),
+      ).rejects.toThrow('Trader profile not found for the user');
+    });
+
+    it('11. Non-existent plan should throw NotFoundException', async () => {
+      (prismaService.user.findUnique as jest.Mock).mockResolvedValue(mockTraderUser);
+      (prismaService.subscriptionPlan.findUnique as jest.Mock).mockResolvedValue(null);
+
+      await expect(
+        service.updateTraderCategorySelection(mockUserId, {
+          planId: 'non-existent-plan',
+          tradeCategories: ['cat-1'],
+        }),
+      ).rejects.toThrow('Target subscription plan not found or inactive');
     });
   });
 });

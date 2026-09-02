@@ -110,6 +110,11 @@ export class UpdateProfileDto {
   @IsOptional()
   @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)
   @IsString()
+  displayName?: string;
+
+  @IsOptional()
+  @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)
+  @IsString()
   companyType?: string;
 
   @IsOptional()

@@ -25,6 +25,14 @@ export class TraderRegisterStep2Dto {
   companyName?: string;
 
   @ApiPropertyOptional({
+    example: 'ABC Plumbing',
+  })
+  @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)
+  @IsOptional()
+  @IsString()
+  displayName?: string;
+
+  @ApiPropertyOptional({
     example: 'Private Limited',
   })
   @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)
