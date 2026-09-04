@@ -182,7 +182,11 @@ export class SubscriptionsService {
         subscription.trialEndDate ||
         subscription.currentPeriodEnd ||
         subscription.endDate;
-
+      await this.redisService.del(`user:${userId}:profile`);
+      await this.redisService.del(`admin:user-details:${userId}`);
+      await this.redisService.del(`profile:${userId}`);
+      await this.redisService.del(`registration-status:${userId}`);
+      await this.redisService.deleteByPattern('traders:*');
       return {
         success: true,
         message: 'Subscription plan updated successfully during trial',

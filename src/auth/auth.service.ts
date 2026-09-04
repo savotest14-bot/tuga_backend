@@ -2464,7 +2464,7 @@ export class AuthService {
                 this.redisService.del(
                     `registration-status:${userId}`,
                 ),
-                this.redisService.flushAll(),
+                // this.redisService.flushAll(),
             ]);
 
             return { message: 'Profile updated successfully' };
