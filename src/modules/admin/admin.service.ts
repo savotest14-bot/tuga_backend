@@ -2412,7 +2412,7 @@ export class AdminService {
                   u."profileImage",
                   tm."totalReviews",
                   tm."averageRating",
-                  sp."featuredAtTop",
+                  COALESCE(sp."featuredAtTop", false) AS "featuredAtTop",
                   (ST_Distance(u.location, ST_SetSRID(ST_MakePoint(${job.longitude}, ${job.latitude}), 4326)::geography) / 1000) AS "distanceKm",
                   GREATEST(0.0, LEAST(1.0, (
                     -- Proximity score (weight 0.30)
@@ -2438,6 +2438,7 @@ export class AdminService {
                 FROM "User" u
                 INNER JOIN "TraderProfile" tp ON tp."userId" = u.id
                 LEFT JOIN "TraderMetrics" tm ON tm."traderId" = u.id
+                LEFT JOIN "SubscriptionPlan" sp ON sp.name = tp."subscriptionTier"
                 ${whereClause}
                 ORDER BY        
                "finalScore" DESC,
