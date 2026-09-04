@@ -27,6 +27,8 @@ lerna-debug.log*
 *.launch
 .settings/
 *.sublime-workspace
+redis.zip
+redis_bin/
 
 # IDE - VSCode
 .vscode/*
