@@ -99,17 +99,19 @@ export class TraderMatchingService {
       Prisma.sql`tp."isVisible" = true`,
       Prisma.sql`tp."verificationStatus" = 'APPROVED'`,
       Prisma.sql`tp."subscriptionStatus" IN ('TRIAL', 'ACTIVE')`,
-      Prisma.sql`u.latitude IS NOT NULL`,
-      Prisma.sql`u.longitude IS NOT NULL`,
       Prisma.sql`u.location IS NOT NULL`,
-      Prisma.sql`tp."tradeCategories" && ${categoryIds}`,
-      Prisma.sql`tp."skillsServices" && ${skillServiceIds}`,
       // ST_DWithin uses spatial index (GIST) on u.location
       Prisma.sql`ST_DWithin(u.location, ST_SetSRID(ST_MakePoint(${job.longitude}, ${job.latitude}), 4326)::geography, ${job.currentRadiusKm * 1000}::double precision)`,
       // Temporarily exclude low response rate traders (under 30%) who are not new (totalMatchedJobs >= 8)
       Prisma.sql`NOT (COALESCE(tm."totalMatchedJobs", 0) >= 8 AND COALESCE(tm."responseRate", 0) < 0.3)`
     ];
 
+    if (categoryIds.length > 0) {
+      conditions.push(Prisma.sql`tp."tradeCategories" && ${categoryIds}`);
+    }
+    if (skillServiceIds.length > 0) {
+      conditions.push(Prisma.sql`tp."skillsServices" && ${skillServiceIds}`);
+    }
     if (subCategoryIds.length > 0) {
       conditions.push(Prisma.sql`tp."subCategories" && ${subCategoryIds}`);
     }
@@ -121,6 +123,7 @@ export class TraderMatchingService {
         SELECT 
           u.id AS "traderId",
           u.email,
+          COALESCE(sp."featuredAtTop", false) AS "featuredAtTop",
           (ST_Distance(u.location, ST_SetSRID(ST_MakePoint(${job.longitude}, ${job.latitude}), 4326)::geography) / 1000) AS "distanceKm",
           GREATEST(0.0, LEAST(1.0, (
             -- Proximity score (weight 0.30)
@@ -146,6 +149,7 @@ export class TraderMatchingService {
         FROM "User" u
         INNER JOIN "TraderProfile" tp ON tp."userId" = u.id
         LEFT JOIN "TraderMetrics" tm ON tm."traderId" = u.id
+        LEFT JOIN "SubscriptionPlan" sp ON sp.name = tp."subscriptionTier"
         ${whereClause}
         ORDER BY
        "finalScore" DESC,

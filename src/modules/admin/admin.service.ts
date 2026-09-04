@@ -2379,8 +2379,6 @@ export class AdminService {
             Prisma.sql`tp."verificationStatus" = 'APPROVED'`,
             Prisma.sql`tp."subscriptionStatus" IN ('TRIAL', 'ACTIVE')`,
             Prisma.sql`u.location IS NOT NULL`,
-            Prisma.sql`tp."tradeCategories" && ${categoryIds}`,
-            Prisma.sql`tp."skillsServices" && ${skillServiceIds}`,
             Prisma.sql`ST_DWithin(
       u.location,
       ST_SetSRID(
@@ -2389,8 +2387,19 @@ export class AdminService {
       )::geography,
       ${searchRadiusKm * 1000}
     )`,
+            Prisma.sql`NOT (COALESCE(tm."totalMatchedJobs", 0) >= 8 AND COALESCE(tm."responseRate", 0) < 0.3)`,
         ];
 
+        if (categoryIds.length > 0) {
+            conditions.push(
+                Prisma.sql`tp."tradeCategories" && ${categoryIds}`,
+            );
+        }
+        if (skillServiceIds.length > 0) {
+            conditions.push(
+                Prisma.sql`tp."skillsServices" && ${skillServiceIds}`,
+            );
+        }
         if (subCategoryIds.length > 0) {
             conditions.push(
                 Prisma.sql`tp."subCategories" && ${subCategoryIds}`,
