@@ -842,6 +842,7 @@ export class JobService {
                                 id: true,
                                 fullName: true,
                                 email: true,
+                                profileImage:true,
                             },
                         },
 
