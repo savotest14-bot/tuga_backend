@@ -1241,4 +1241,61 @@ export class CustomerService {
         };
     }
 
+    async getUnreviewedCompletedJobs(customerId: string) {
+        const jobs = await this.prisma.job.findMany({
+            where: {
+                customerId,
+                status: 'COMPLETED',
+                reviews: {
+                    none: {
+                        customerId,
+                    },
+                },
+            },
+            include: {
+                categories: {
+                    select: {
+                        id: true,
+                        name: true,
+                    },
+                },
+                subCategories: {
+                    select: {
+                        id: true,
+                        name: true,
+                    },
+                },
+                skillServices: {
+                    select: {
+                        id: true,
+                        name: true,
+                    },
+                },
+                selectedTrader: {
+                    select: {
+                        id: true,
+                        fullName: true,
+                        email: true,
+                        phone: true,
+                        profileImage: true,
+                        traderProfile: {
+                            select: {
+                                companyName: true,
+                            },
+                        },
+                    },
+                },
+            },
+            orderBy: {
+                updatedAt: 'desc',
+            },
+        });
+
+        return {
+            status: 200,
+            message: 'Unreviewed completed jobs fetched successfully',
+            data: jobs,
+        };
+    }
+
 }

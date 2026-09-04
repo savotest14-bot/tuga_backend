@@ -185,16 +185,23 @@ export class CustomerController {
   }
 
   @Get('jobs/:id')
-    @ApiBearerAuth('access-token')
-    async getJobDetails(@Param('id', ParseUUIDPipe) id: string) {
-        return this.customerService.getJobDetails(id);
-    }
+  @ApiBearerAuth('access-token')
+  async getJobDetails(@Param('id', ParseUUIDPipe) id: string) {
+    return this.customerService.getJobDetails(id);
+  }
 
   @Get('interacted-traders')
   @ApiBearerAuth('access-token')
   @ApiOperation({ summary: 'Get traders that have interacted with the customer via chat or quote' })
   async getInteractedTraders(@Req() req: Request) {
-      return this.customerService.getInteractedTraders(req['user'].id);
+    return this.customerService.getInteractedTraders(req['user'].id);
+  }
+
+  @Get('unreviewed-completed-jobs')
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Get completed jobs that the customer has not yet reviewed' })
+  async getUnreviewedCompletedJobs(@Req() req: Request) {
+    return this.customerService.getUnreviewedCompletedJobs(req['user'].id);
   }
 
 }
