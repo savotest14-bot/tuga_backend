@@ -99,6 +99,8 @@ export class TraderMatchingService {
       Prisma.sql`tp."isVisible" = true`,
       Prisma.sql`tp."verificationStatus" = 'APPROVED'`,
       Prisma.sql`tp."subscriptionStatus" IN ('TRIAL', 'ACTIVE')`,
+      Prisma.sql`u.latitude IS NOT NULL`,
+      Prisma.sql`u.longitude IS NOT NULL`,
       Prisma.sql`u.location IS NOT NULL`,
       // ST_DWithin uses spatial index (GIST) on u.location
       Prisma.sql`ST_DWithin(u.location, ST_SetSRID(ST_MakePoint(${job.longitude}, ${job.latitude}), 4326)::geography, ${job.currentRadiusKm * 1000}::double precision)`,
@@ -123,6 +125,10 @@ export class TraderMatchingService {
         SELECT 
           u.id AS "traderId",
           u.email,
+          u."fullName",
+          u."profileImage",
+          tm."totalReviews",
+          tm."averageRating",
           COALESCE(sp."featuredAtTop", false) AS "featuredAtTop",
           (ST_Distance(u.location, ST_SetSRID(ST_MakePoint(${job.longitude}, ${job.latitude}), 4326)::geography) / 1000) AS "distanceKm",
           GREATEST(0.0, LEAST(1.0, (
