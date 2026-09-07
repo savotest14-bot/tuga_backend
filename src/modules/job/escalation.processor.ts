@@ -124,7 +124,7 @@ export class EscalationProcessor extends WorkerHost {
       const escalationCount = nextVersion;
 
       if (
-        escalationCount >= 5 &&
+        escalationCount >= 9 &&
         dbJob.quotesReceived === 0
       ) {
         await this.prisma.job.update({

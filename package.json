@@ -52,11 +52,12 @@
     "nodemailer": "^8.0.9",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
-    "pg": "^8.21.0",
+    "pg": "^8.23.0",
     "prisma": "^7.8.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
     "socket.io": "^4.8.3",
+    "ssh2": "^1.17.0",
     "swagger-ui-express": "^5.0.1",
     "uuid": "^14.0.0"
   },

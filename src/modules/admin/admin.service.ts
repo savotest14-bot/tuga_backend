@@ -2387,7 +2387,7 @@ export class AdminService {
       )::geography,
       ${searchRadiusKm * 1000}
     )`,
-            Prisma.sql`NOT (COALESCE(tm."totalMatchedJobs", 0) >= 8 AND COALESCE(tm."responseRate", 0) < 0.3)`,
+            // Prisma.sql`NOT (COALESCE(tm."totalMatchedJobs", 0) >= 8 AND COALESCE(tm."responseRate", 0) < 0.3)`,
         ];
 
         if (categoryIds.length > 0) {
@@ -2465,7 +2465,9 @@ export class AdminService {
             this.logger.log(`No matching traders found within ${searchRadiusKm}km for job ${jobId}`);
             return [];
         }
-        return scoredTraders
+
+        this.logger.log(`getSuggestedTraders matched ${scoredTraders.length} traders for job ${jobId}`);
+        return scoredTraders;
     }
 
     async getAllQuotes(

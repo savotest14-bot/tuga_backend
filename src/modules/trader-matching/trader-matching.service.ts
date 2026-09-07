@@ -105,7 +105,9 @@ export class TraderMatchingService {
       // ST_DWithin uses spatial index (GIST) on u.location
       Prisma.sql`ST_DWithin(u.location, ST_SetSRID(ST_MakePoint(${job.longitude}, ${job.latitude}), 4326)::geography, ${job.currentRadiusKm * 1000}::double precision)`,
       // Temporarily exclude low response rate traders (under 30%) who are not new (totalMatchedJobs >= 8)
-      Prisma.sql`NOT (COALESCE(tm."totalMatchedJobs", 0) >= 8 AND COALESCE(tm."responseRate", 0) < 0.3)`
+      // Prisma.sql`NOT (COALESCE(tm."totalMatchedJobs", 0) >= 8 AND COALESCE(tm."responseRate", 0) < 0.3)`,
+      // Exclude traders that have already been matched and sent this job
+      Prisma.sql`NOT EXISTS (SELECT 1 FROM "JobTraderMatch" jtm WHERE jtm."jobId" = ${job.id} AND jtm."traderId" = u.id)`
     ];
 
     if (categoryIds.length > 0) {
