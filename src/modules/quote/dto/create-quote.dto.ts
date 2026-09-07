@@ -38,6 +38,14 @@ export class CreateQuoteDto {
   estimatedDays?: number;
 
   @ApiPropertyOptional({
+    example: 'Available from next Monday',
+  })
+  @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)
+  @IsOptional()
+  @IsString()
+  availability?: string;
+
+  @ApiPropertyOptional({
     example: 'I can complete this work quickly',
   })
   @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)

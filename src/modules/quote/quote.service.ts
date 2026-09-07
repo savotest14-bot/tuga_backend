@@ -520,6 +520,7 @@ export class QuoteService {
                                 price: dto.price,
                                 estimatedDays:
                                     dto.estimatedDays,
+                                availability: dto.availability,
                                 message: dto.message,
                                 attachments: {
                                     create: files?.map((file) => ({
@@ -1588,6 +1589,7 @@ export class QuoteService {
                     data: {
                         price: dto.price ?? quote.price,
                         estimatedDays: dto.estimatedDays ?? quote.estimatedDays,
+                        availability: dto.availability ?? quote.availability,
                         message: dto.message ?? quote.message,
                         status: QuoteStatus.PENDING, // Reset status to PENDING
                         ...(files && files.length > 0

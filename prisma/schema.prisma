@@ -884,6 +884,8 @@ model Quote {
 
   estimatedDays Int?
 
+  availability String?
+
   message String?
 
   status QuoteStatus @default(PENDING)

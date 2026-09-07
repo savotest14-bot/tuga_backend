@@ -203,7 +203,6 @@ export class TraderMatchingService {
       |--------------------------------------------------------------------------
       */
       if (existingMatch) {
-
         transactionOperations.push(
           this.prisma.jobTraderMatch.update({
             where: {
@@ -212,7 +211,6 @@ export class TraderMatchingService {
                 traderId: item.traderId,
               },
             },
-
             data: {
               distanceKm: item.distanceKm,
               score: item.finalScore,
@@ -258,7 +256,6 @@ export class TraderMatchingService {
               cancelledJobs: 0,
               closedJobs: 0,
             },
-
             update: {
               invitesCount: {
                 increment: 1,

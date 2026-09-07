@@ -54,6 +54,7 @@ export class QuoteController {
             properties: {
                 price: { type: 'number', nullable: true },
                 estimatedDays: { type: 'number', nullable: true },
+                availability: { type: 'string', nullable: true },
                 message: { type: 'string', nullable: true },
                 attachments: {
                     type: 'array',
@@ -194,6 +195,7 @@ export class QuoteController {
             properties: {
                 price: { type: 'number', nullable: true },
                 estimatedDays: { type: 'number', nullable: true },
+                availability: { type: 'string', nullable: true },
                 message: { type: 'string', nullable: true },
                 attachments: {
                     type: 'array',
