@@ -840,7 +840,7 @@ export class QuoteService {
         */
 
         try {
-            const { rejectedQuotes: txRejectedQuotes, updatedJob } = await this.prisma.$transaction(
+            const { rejectedQuotes: txRejectedQuotes, otherMatches, updatedJob } = await this.prisma.$transaction(
                 async (tx) => {
 
                     /*
@@ -981,6 +981,20 @@ export class QuoteService {
                     |--------------------------------------------------------------------------
                     */
 
+                    const otherMatches =
+                        await tx.jobTraderMatch.findMany({
+                            where: {
+                                jobId: quote.jobId,
+
+                                traderId: {
+                                    not: quote.traderId,
+                                },
+                            },
+                            select: {
+                                traderId: true,
+                            },
+                        });
+
                     await tx.jobTraderMatch.updateMany({
                         where: {
                             jobId: quote.jobId,
@@ -999,8 +1013,24 @@ export class QuoteService {
                         },
                     });
 
-                    return { rejectedQuotes, updatedJob };
+                    return { rejectedQuotes, otherMatches, updatedJob };
                 },
+            );
+
+            /*
+            |--------------------------------------------------------------------------
+            | IDENTIFY ALL REJECTED TRADERS (QUOTED + MATCHED)
+            |--------------------------------------------------------------------------
+            */
+            const allRejectedTraderIds: string[] = Array.from(
+                new Set<string>([
+                    ...txRejectedQuotes.map((q) => q.traderId),
+                    ...otherMatches.map((m) => m.traderId),
+                ]),
+            );
+
+            const quotedTraderIds: string[] = Array.from(
+                new Set<string>(txRejectedQuotes.map((q) => q.traderId)),
             );
 
             /*
@@ -1020,49 +1050,12 @@ export class QuoteService {
                 this.logger.error(`Failed to notify accepted trader: ${err.message}`);
             });
 
-            // Get and notify rejected traders
-            const rejectedQuotes = await this.prisma.quote.findMany({
-                where: {
-                    jobId: quote.jobId,
-                    status: QuoteStatus.REJECTED,
-                },
-                select: { traderId: true },
-            });
-            // Clear cache for selected trader
-            await this.redisService.deleteByPattern(
-                `trader:matched-jobs:${quote.traderId}:*`,
-            );
-            await this.redisService.deleteByPattern(
-                `trader:quotes:${quote.traderId}:*`,
-            );
-            // Clear quotes cache
-            await this.redisService.del(
-                `job:quotes:${quote.jobId}`,
-            );
-            await this.redisService.del(
-                `trader:quote:${quote.traderId}:job:${quote.jobId}`,
-            );
-            await this.redisService.deleteByPattern(
-                'admin:jobs:*',
-            );
-            await this.redisService.deleteByPattern('admin:quotes:*');
-
-            // Clear cache and notify rejected traders
+            // Notify rejected traders who submitted quotes (deduplicated)
             await Promise.all(
-                rejectedQuotes.map(async rejected => {
-                    await this.redisService.deleteByPattern(
-                        `trader:matched-jobs:${rejected.traderId}:*`,
-                    );
-                    await this.redisService.deleteByPattern(
-                        `trader:quotes:${rejected.traderId}:*`,
-                    );
-                    await this.redisService.del(
-                        `trader:quote:${rejected.traderId}:job:${quote.jobId}`,
-                    );
-
+                quotedTraderIds.map(async (traderId) => {
                     return this.notificationService
                         .createNotification(
-                            rejected.traderId,
+                            traderId,
                             'Quote Not Selected',
                             `Your quote for "${quote.job.title}" was not selected`,
                             'QUOTE_REJECTED',
@@ -1070,11 +1063,77 @@ export class QuoteService {
                         )
                         .catch(err => {
                             this.logger.warn(
-                                `Failed to notify rejected trader ${rejected.traderId}: ${err.message}`,
+                                `Failed to notify rejected trader ${traderId}: ${err.message}`,
                             );
                         });
                 }),
             );
+
+            /*
+            |--------------------------------------------------------------------------
+            | CLEAR REDIS CACHE
+            |--------------------------------------------------------------------------
+            */
+
+            // Clear cache for selected trader
+            await Promise.all([
+                this.redisService.deleteByPattern(
+                    `trader:matched-jobs:${quote.traderId}:*`,
+                ),
+                this.redisService.deleteByPattern(
+                    `trader:matched-jobs:${quote.traderId}*`,
+                ),
+                this.redisService.deleteByPattern(
+                    `trader:quotes:${quote.traderId}:*`,
+                ),
+                this.redisService.deleteByPattern(
+                    `trader:quotes:${quote.traderId}*`,
+                ),
+                this.redisService.del(
+                    `trader:quote:${quote.traderId}:job:${quote.jobId}`,
+                ),
+            ]);
+
+            // Clear cache for ALL rejected traders (both matched and quoted)
+            await Promise.all(
+                allRejectedTraderIds.map(async (traderId) => {
+                    await Promise.all([
+                        this.redisService.deleteByPattern(
+                            `trader:matched-jobs:${traderId}:*`,
+                        ),
+                        this.redisService.deleteByPattern(
+                            `trader:matched-jobs:${traderId}*`,
+                        ),
+                        this.redisService.deleteByPattern(
+                            `trader:quotes:${traderId}:*`,
+                        ),
+                        this.redisService.deleteByPattern(
+                            `trader:quotes:${traderId}*`,
+                        ),
+                        this.redisService.deleteByPattern(
+                            `trader:quote:${traderId}:*`,
+                        ),
+                        this.redisService.del(
+                            `trader:quote:${traderId}:job:${quote.jobId}`,
+                        ),
+                    ]);
+                }),
+            );
+
+            // Clear job quotes, job details, and customer/admin caches
+            await Promise.all([
+                this.redisService.del(`job:quotes:${quote.jobId}`),
+                this.redisService.del(`admin:job:${quote.jobId}`),
+                this.redisService.deleteByPattern(`customer:jobs:${customerId}:*`),
+                this.redisService.deleteByPattern('admin:jobs:*'),
+                this.redisService.deleteByPattern('admin:quotes:*'),
+            ]);
+
+            /*
+            |--------------------------------------------------------------------------
+            | REAL-TIME SOCKET UPDATES
+            |--------------------------------------------------------------------------
+            */
 
             // Emit quote status updates to traders
             this.socketService.emitToUser(quote.traderId, 'quoteUpdated', {
@@ -1088,15 +1147,19 @@ export class QuoteService {
                 });
             }
 
-            // Emit job status update to customer, accepted trader, and admins
+            // Emit job status update to customer, accepted trader, admins, and ALL rejected traders
             this.socketService.emitToUser(quote.job.customerId, 'jobUpdated', updatedJob);
             this.socketService.emitToUser(quote.traderId, 'jobUpdated', updatedJob);
+            for (const traderId of allRejectedTraderIds) {
+                this.socketService.emitToUser(traderId, 'jobUpdated', updatedJob);
+            }
             this.socketService.emitToRoom('admins', 'jobUpdated', updatedJob);
 
+            // Real-time dashboard updates
             this.customerDashboardService.emitDashboardUpdate(customerId);
             this.traderDashboardService.emitDashboardUpdate(quote.traderId);
-            for (const rejected of txRejectedQuotes) {
-                this.traderDashboardService.emitDashboardUpdate(rejected.traderId);
+            for (const traderId of allRejectedTraderIds) {
+                this.traderDashboardService.emitDashboardUpdate(traderId);
             }
 
         } catch (error) {
@@ -1243,8 +1306,9 @@ export class QuoteService {
             // Emit quote status update to trader
             this.socketService.emitToUser(quote.traderId, 'quoteUpdated', rejectedQuote);
 
-            // Emit job status update to customer and admins
+            // Emit job status update to customer, rejected trader, and admins
             this.socketService.emitToUser(quote.job.customerId, 'jobUpdated', updatedJob);
+            this.socketService.emitToUser(quote.traderId, 'jobUpdated', updatedJob);
             this.socketService.emitToRoom('admins', 'jobUpdated', updatedJob);
 
             // Clear cache for trader
@@ -1252,15 +1316,27 @@ export class QuoteService {
                 `trader:matched-jobs:${quote.traderId}:*`,
             );
             await this.redisService.deleteByPattern(
+                `trader:matched-jobs:${quote.traderId}*`,
+            );
+            await this.redisService.deleteByPattern(
                 `trader:quotes:${quote.traderId}:*`,
+            );
+            await this.redisService.deleteByPattern(
+                `trader:quotes:${quote.traderId}*`,
+            );
+            await this.redisService.deleteByPattern(
+                `trader:quote:${quote.traderId}:*`,
             );
             await this.redisService.del(
                 `trader:quote:${quote.traderId}:job:${quote.jobId}`,
             );
 
-            // Clear quotes cache
+            // Clear quotes cache and job details cache
             await this.redisService.del(
                 `job:quotes:${quote.jobId}`,
+            );
+            await this.redisService.del(
+                `admin:job:${quote.jobId}`,
             );
             await this.redisService.deleteByPattern(
                 `customer:jobs:${customerId}:*`,

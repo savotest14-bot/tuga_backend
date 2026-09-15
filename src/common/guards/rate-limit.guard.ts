@@ -8,25 +8,25 @@ export class RateLimitGuard implements CanActivate {
   constructor(
     private readonly redisService: RedisService,
     private reflector: Reflector,
-  ) {}
+  ) { }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<Request>();
     const handler = context.getHandler();
-    
+
     // Check metadata first
     const limitMeta = this.reflector.get<{ limit: number; ttl: number }>('rateLimit', handler);
-    
+
     const path = request.path;
     const method = request.method;
-    
+
     // AuthMiddleware attaches req.user
     const user = request['user'] as any;
     const identifier = user?.id || request.ip || 'anonymous';
-    
+
     let limit = 100;
     let ttl = 60; // default 1 minute (60 seconds)
-    
+
     if (limitMeta) {
       limit = limitMeta.limit;
       ttl = limitMeta.ttl;
@@ -40,14 +40,14 @@ export class RateLimitGuard implements CanActivate {
         limit = 5;
       }
     }
-    
+
     const redisKey = `rate_limit:${method}:${path}:${identifier}`;
     const current = await this.redisService.incr(redisKey);
-    
+
     if (current === 1) {
       await this.redisService.expire(redisKey, ttl);
     }
-    
+
     if (current > limit) {
       const remainingTtl = await this.redisService.ttl(redisKey);
       throw new HttpException(
@@ -59,7 +59,7 @@ export class RateLimitGuard implements CanActivate {
         HttpStatus.TOO_MANY_REQUESTS,
       );
     }
-    
+ 
     return true;
-  }
+  }  
 }
