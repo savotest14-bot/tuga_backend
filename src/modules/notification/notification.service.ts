@@ -46,7 +46,9 @@ export class NotificationService {
         data,
       },
     });
+    console.log("created notification");
     if (user.fcmToken) {
+      console.log("working dsjafsd")
       try {
         await this.notificationQueue.add(
           'send-push',
@@ -62,7 +64,7 @@ export class NotificationService {
             attempts: 3,
             backoff: {
               type: 'exponential',
-              delay: 2000, // 2s, 4s, 8s
+              delay: 2000,
             },
             removeOnComplete: true,
             removeOnFail: false,
@@ -194,5 +196,5 @@ export class NotificationService {
         'All notifications marked as read',
     };
   }
-  
+
 }

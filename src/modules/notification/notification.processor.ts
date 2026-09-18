@@ -30,7 +30,7 @@ export class NotificationProcessor extends WorkerHost {
       this.logger.warn(`User ${userId} does not have an FCM token, skipping push notification`);
       return { status: 'skipped', reason: 'no_fcm_token' };
     }
-
+ console.log("fcm", user.fcmToken)
     try {
       const response = await admin.messaging().send({
         token: user.fcmToken,
