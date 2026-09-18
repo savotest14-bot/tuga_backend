@@ -88,6 +88,7 @@ export class AuthService {
                         data.isCheckedTermsCondition,
                     latitude: data.latitude,
                     longitude: data.longitude,
+                    fcmToken: data.fcmToken,
 
                     // Save OTP
                     verificationOtp: otp,
@@ -212,6 +213,7 @@ export class AuthService {
 
                     status: 'PENDING',
 
+                    fcmToken: data.fcmToken,
 
                     // Coordinates
 
@@ -1450,6 +1452,13 @@ export class AuthService {
             role: user.role,
         });
 
+        const updateData: { token: string; fcmToken?: string } = {
+            token: accessToken,
+        };
+        if (data.fcmToken && data.fcmToken.trim() !== '') {
+            updateData.fcmToken = data.fcmToken.trim();
+        }
+
         // Send OTP only if email is not verified
         if (!user.isEmailVerified) {
             const otp = Math.floor(
@@ -1461,7 +1470,7 @@ export class AuthService {
                     id: user.id,
                 },
                 data: {
-                    token: accessToken,
+                    ...updateData,
                     verificationOtp: otp,
                     verificationOtpExpiresAt: new Date(
                         Date.now() + 10 * 60 * 1000,
@@ -1478,9 +1487,7 @@ export class AuthService {
                 where: {
                     id: user.id,
                 },
-                data: {
-                    token: accessToken,
-                },
+                data: updateData,
             });
         }
 

@@ -133,4 +133,13 @@ export class TraderRegisterStep1Dto {
   @IsBoolean()
   @Equals(true)
   isCheckedTermsCondition: boolean;
+
+  @ApiPropertyOptional({
+    example: 'dK12...fcmToken',
+    description: 'Firebase Cloud Messaging device token',
+  })
+  @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)
+  @IsOptional()
+  @IsString()
+  fcmToken?: string;
 }

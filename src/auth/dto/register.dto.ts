@@ -94,4 +94,13 @@ export class CustomerRegisterDto {
   @Min(-180)
   @Max(180)
   longitude?: number;
+
+  @ApiPropertyOptional({
+    example: 'dK12...fcmToken',
+    description: 'Firebase Cloud Messaging device token',
+  })
+  @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)
+  @IsOptional()
+  @IsString()
+  fcmToken?: string;
 }
