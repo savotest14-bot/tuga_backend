@@ -127,6 +127,7 @@ export class AuthService {
                 email: user.email,
                 role: user.role,
                 isEmailVerified: user.isEmailVerified,
+                fcmToken: user.fcmToken,
                 otp: otp, // For testing purposes; remove in production
             },
         };
@@ -277,6 +278,8 @@ export class AuthService {
             otp: otp, // For testing purposes; remove in production
             isEmailVerified:
                 user.isEmailVerified,
+            fcmToken:
+                user.fcmToken,
             registrationStep:
                 user.traderProfile
                     ?.registrationStep,
@@ -1466,7 +1469,7 @@ export class AuthService {
             ).toString();
 
             await this.prisma.user.update({
-                where: {
+                where: { 
                     id: user.id,
                 },
                 data: {
@@ -1502,6 +1505,7 @@ export class AuthService {
                 email: user.email,
                 role: user.role,
                 isEmailVerified: user.isEmailVerified,
+                fcmToken: updateData.fcmToken ?? user.fcmToken,
                 otp: user.verificationOtp,
             },
         };

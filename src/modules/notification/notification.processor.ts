@@ -48,8 +48,32 @@ export class NotificationProcessor extends WorkerHost {
       this.logger.log(`Push notification sent successfully via FCM: ${response}`);
       return { status: 'success', fcmMessageId: response };
     } catch (error) {
+      const isUnregistered =
+        error.code === 'messaging/registration-token-not-registered' ||
+        error.code === 'messaging/invalid-registration-token' ||
+        error.code === 'messaging/invalid-argument' ||
+        error.message?.includes('NotRegistered') ||
+        error.message?.includes('not a valid FCM registration token');
+
+      if (isUnregistered) {
+        this.logger.warn(
+          `FCM token for user ${userId} is invalid or unregistered (${error.message}). Clearing stale token from user record.`,
+        );
+
+        try {
+          await this.prisma.user.update({
+            where: { id: userId },
+            data: { fcmToken: null },
+          });
+        } catch (dbError) {
+          this.logger.error(`Failed to clear stale FCM token for user ${userId}: ${dbError.message}`);
+        }
+
+        return { status: 'failed', reason: 'token_unregistered', error: error.message };
+      }
+
       this.logger.error(`FCM sending failed for user ${userId}: ${error.message}`);
-      throw error; // Throw to trigger BullMQ retry
+      throw error; // Throw for transient/network errors to trigger BullMQ retry
     }
   }
 }
