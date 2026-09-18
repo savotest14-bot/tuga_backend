@@ -51,6 +51,7 @@ redis_bin/
 .tmp
 chat-test.html
 
+firebase-service-account.json
 # Runtime data
 pids
 *.pid
