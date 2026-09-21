@@ -496,13 +496,13 @@ export class CustomerService {
 
         const skip = (page - 1) * limit;
 
-        // const cacheKey = `saved-traders:${customerId}:${page}:${limit}`;
+        const cacheKey = `saved-traders:${customerId}:${page}:${limit}`;
 
-        // const cached = await this.redisService.get(cacheKey);
+        const cached = await this.redisService.get(cacheKey);
 
-        // if (cached) {
-        //     return cached;
-        // }
+        if (cached) {
+            return cached;
+        }
 
         const [savedTraders, total] = await Promise.all([
             this.prisma.savedTrader.findMany({
@@ -529,6 +529,7 @@ export class CustomerService {
                                     companyType: true,
                                     registrationNumber: true,
                                     workRadius: true,
+                                    logo: true,
                                 },
                             },
                             traderMetrics: {
@@ -630,31 +631,62 @@ export class CustomerService {
 
         // Create lookup maps
         const categoryMap = new Map(
-            categories.map((item) => [item.id, { name: item.name, image: item.image }]),
+            categories.map((item) => [
+                item.id,
+                {
+                    name: item.name,
+                    image: this.formatImageUrl(item.image),
+                },
+            ]),
         );
 
         const skillServiceMap = new Map(
-            skillServices.map((item) => [item.id, { name: item.name, image: item.image }]),
+            skillServices.map((item) => [
+                item.id,
+                {
+                    name: item.name,
+                    image: this.formatImageUrl(item.image),
+                },
+            ]),
         );
 
         const subCategoryMap = new Map(
-            subCategories.map((item) => [item.id, { name: item.name, image: item.image }]),
+            subCategories.map((item) => [
+                item.id,
+                {
+                    name: item.name,
+                    image: this.formatImageUrl(item.image),
+                },
+            ]),
         );
 
         // Attach names and images
         const updatedSavedTraders = savedTraders.map((savedTrader) => {
             const profile = savedTrader.trader.traderProfile;
+            const rawTraderImage =
+                savedTrader.trader.profileImage || profile?.logo || null;
+            const formattedProfileImage = this.formatImageUrl(rawTraderImage);
+            const formattedLogo = this.formatImageUrl(profile?.logo || rawTraderImage);
 
             if (!profile) {
-                return savedTrader;
+                return {
+                    ...savedTrader,
+                    trader: {
+                        ...savedTrader.trader,
+                        profileImage: formattedProfileImage,
+                    },
+                };
             }
 
             return {
                 ...savedTrader,
                 trader: {
                     ...savedTrader.trader,
+                    profileImage: formattedProfileImage,
                     traderProfile: {
                         ...profile,
+                        logo: formattedLogo,
+                        profileImage: formattedProfileImage,
 
                         tradeCategories: profile.tradeCategories,
 
@@ -710,11 +742,11 @@ export class CustomerService {
             },
         };
 
-        // await this.redisService.set(
-        //     cacheKey,
-        //     result,
-        //     300,
-        // );
+        await this.redisService.set(
+            cacheKey,
+            result,
+            60,
+        );
 
         return result;
     }
@@ -1311,6 +1343,15 @@ export class CustomerService {
             message: 'Unreviewed completed jobs fetched successfully',
             data: jobs,
         };
+    }
+
+    private formatImageUrl(file: string | null | undefined): string | null {
+        if (!file) return null;
+        if (file.startsWith('http://') || file.startsWith('https://')) return file;
+        const baseUrl = process.env.APP_URL || '';
+        const cleanBase = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+        const cleanPath = file.startsWith('/') ? file.slice(1) : file;
+        return cleanBase ? `${cleanBase}/${cleanPath}` : file;
     }
 
 }
