@@ -36,6 +36,8 @@ import { GetTradersQueryDto } from './dto/get-traders-query.dto';
 import { GetPendingReviewsQueryDto } from './dto/get-pending-reviews-query.dto';
 import { GetCategoryChangeRequestsQueryDto } from './dto/get-category-change-requests-query.dto';
 import { GetAdminJobActionLogsQueryDto } from './dto/get-admin-job-action-logs-query.dto';
+import { GetDeactivatedAccountsQueryDto } from './dto/get-deactivated-accounts-query.dto';
+import { Role } from '@prisma/client';
 
 import type { Request } from 'express';
 
@@ -366,5 +368,41 @@ export class AdminController {
             jobId: query.jobId,
             action: query.action,
         });
+    }
+
+    // =========================
+    // DEACTIVATED ACCOUNTS
+    // =========================
+
+    @Get('deactivated-accounts')
+    @ApiBearerAuth('access-token')
+    @ApiOperation({ summary: 'Get all deactivated accounts with pagination and email/search filters' })
+    @ApiQuery({ name: 'page', required: false, example: 1 })
+    @ApiQuery({ name: 'limit', required: false, example: 10 })
+    @ApiQuery({ name: 'email', required: false, example: 'user@example.com' })
+    @ApiQuery({ name: 'search', required: false, example: 'john' })
+    @ApiQuery({ name: 'role', required: false, enum: Role })
+    @ApiQuery({ name: 'hasReactivationRequest', required: false, type: Boolean, example: true })
+    async getDeactivatedAccounts(
+        @Query() query: GetDeactivatedAccountsQueryDto,
+    ) {
+        return this.adminService.getDeactivatedAccounts(
+            query.page ?? 1,
+            query.limit ?? 10,
+            query.email,
+            query.search,
+            query.role,
+            query.hasReactivationRequest,
+        );
+    }
+
+    @Patch('users/:userId/reactivate')
+    @ApiBearerAuth('access-token')
+    @ApiOperation({ summary: 'Reactivate a deactivated user account (alias)' })
+    @ApiParam({ name: 'userId', type: String, example: '4d0840bb-4aff-4a20-a2a4-253f48e722d2' })
+    async reactivateUser(
+        @Param('userId', ParseUUIDPipe) userId: string,
+    ) {
+        return this.adminService.reactivateAccount(userId);
     }
 }

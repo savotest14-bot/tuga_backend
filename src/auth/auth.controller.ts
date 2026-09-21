@@ -33,6 +33,7 @@ import { UpdateProfileDto } from './dto/updateProfile.dto';
 import { UpdateTraderAssetsDto } from './dto/update-trader-assest.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { UpdateTraderCategoriesDto } from './dto/update-trade-categories.dto';
+import { RequestReactivationDto } from './dto/request-reactivation.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -250,6 +251,12 @@ export class AuthController {
   @ApiOperation({ summary: 'Deactivate current user account' })
   async deactivateAccount(@Req() req: Request) {
     return this.authService.deactivateAccount(req['user'].id);
+  }
+
+  @Post('request-reactivation')
+  @ApiOperation({ summary: 'Request account reactivation from administrator (alias)' })
+  async requestReactivation(@Body() dto: RequestReactivationDto) {
+    return this.authService.requestReactivation(dto);
   }
 
   @Post('forgot-password')

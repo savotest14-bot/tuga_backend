@@ -16,7 +16,8 @@ import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
 import * as fs from 'fs';
 import * as path from 'path';
-import { Role, VerificationStatus } from '@prisma/client';
+import { Role, VerificationStatus, ContactSubject, ContactStatus } from '@prisma/client';
+import { RequestReactivationDto } from './dto/request-reactivation.dto';
 import { MailService } from '../common/mail/mail.service';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { TraderRegisterStep1Dto } from './dto/trader-register-step1.dto';
@@ -1557,11 +1558,142 @@ export class AuthService {
             this.redisService.del(`profile:${userId}`),
             this.redisService.deleteByPattern('customers:*'),
             this.redisService.deleteByPattern('traders:*'),
+            this.redisService.deleteByPattern('deactivated-accounts:*'),
             this.redisService.del(`registration-status:${userId}`),
         ]);
 
         return {
             message: 'Account deactivated successfully',
+        };
+    }
+
+    async requestReactivation(dto: RequestReactivationDto) {
+        const email = dto.email.toLowerCase().trim();
+        const user = await this.prisma.user.findUnique({
+            where: { email },
+        });
+
+        if (!user) {
+            throw new BadRequestException('No account found with this email address');
+        }
+
+        if (user.status === 'ACTIVE') {
+            throw new BadRequestException(
+                'This account is already active. You can log in directly.',
+            );
+        }
+
+        if (user.status === 'BLOCKED') {
+            throw new BadRequestException(
+                'This account has been blocked by an administrator. Please contact customer support.',
+            );
+        }
+
+        if (user.status !== 'INACTIVE') {
+            throw new BadRequestException(
+                `Unable to request reactivation for an account with status: ${user.status}`,
+            );
+        }
+
+        // Prevent spam submissions within 5 minutes
+        const recentRequest = await this.prisma.contactSubmission.findFirst({
+            where: {
+                userId: user.id,
+                createdAt: {
+                    gte: new Date(Date.now() - 5 * 60 * 1000),
+                },
+            },
+        });
+
+        if (recentRequest) {
+            throw new BadRequestException(
+                'You have already submitted a reactivation request recently. Please wait for the administrator to review it.',
+            );
+        }
+
+        const submissionMessage =
+            dto.message && dto.message.trim() !== ''
+                ? dto.message.trim()
+                : 'Account reactivation requested by user.';
+
+        const submission = await this.prisma.contactSubmission.create({
+            data: {
+                userId: user.id,
+                name: dto.name?.trim() || user.fullName || 'Deactivated User',
+                email: user.email,
+                subject: ContactSubject.OTHER,
+                message: `[Account Reactivation Request] ${submissionMessage}`,
+                status: ContactStatus.PENDING,
+            },
+        });
+
+        await Promise.all([
+            this.redisService.deleteByPattern('deactivated-accounts:*'),
+            this.redisService.deleteByPattern('contacts:admin:*'),
+        ]);
+
+        try {
+            const admins = await this.prisma.user.findMany({
+                where: { role: Role.ADMIN },
+                select: { id: true, email: true },
+            });
+
+            await Promise.all(
+                admins.map((admin) =>
+                    this.notificationService.createNotification(
+                        admin.id,
+                        'Account Reactivation Request',
+                        `User ${user.fullName || user.email} (${user.email}) has requested account reactivation.`,
+                        'ACCOUNT_REACTIVATION_REQUEST',
+                        {
+                            userId: user.id,
+                            email: user.email,
+                            role: user.role,
+                            submissionId: submission.id,
+                            message: submissionMessage,
+                        },
+                    ),
+                ),
+            );
+
+            const adminEmails = admins.map((a) => a.email).filter(Boolean);
+            for (const adminEmail of adminEmails) {
+                await this.mailService.sendMail({
+                    to: adminEmail,
+                    subject: `Account Reactivation Request: ${user.fullName || user.email}`,
+                    html: `
+                        <div style="font-family: Arial, sans-serif; padding: 20px;">
+                            <h2>Account Reactivation Request</h2>
+                            <p>A deactivated user has requested their account to be reactivated:</p>
+                            <table style="border-collapse: collapse; width: 100%; max-width: 600px; margin: 15px 0;">
+                                <tr><td style="padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;">User ID:</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${user.id}</td></tr>
+                                <tr><td style="padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;">Name:</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${user.fullName || 'N/A'}</td></tr>
+                                <tr><td style="padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;">Email:</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${user.email}</td></tr>
+                                <tr><td style="padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;">Role:</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${user.role}</td></tr>
+                                <tr><td style="padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;">Message:</td><td style="padding: 8px; border-bottom: 1px solid #eee; background: #f9f9f9;">${submissionMessage}</td></tr>
+                            </table>
+                            <p style="margin-top: 20px;">
+                                You can reactivate this account from the admin dashboard or via API:
+                                <br/>
+                                <code>PATCH /admin/reactivate-account/${user.id}</code>
+                            </p>
+                            <br/>
+                            <p>Best regards,<br/><strong>Tuga System</strong></p>
+                        </div>
+                    `,
+                });
+            }
+        } catch (error: any) {
+            console.warn(
+                `Failed to notify admins of reactivation request: ${error?.message || error}`,
+            );
+        }
+
+        return {
+            success: true,
+            message:
+                'Your request for account reactivation has been submitted to the administrator. You will be notified once reviewed.',
+            submissionId: submission.id,
         };
     }
 

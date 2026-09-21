@@ -2656,4 +2656,250 @@ export class AdminService {
             },
         };
     }
+
+    // =========================
+    // DEACTIVATED ACCOUNTS
+    // =========================
+
+    async getDeactivatedAccounts(
+        page: number = 1,
+        limit: number = 10,
+        email?: string,
+        search?: string,
+        role?: Role,
+        hasReactivationRequest?: boolean,
+    ) {
+        const cacheKey = `deactivated-accounts:${page}:${limit}:${email || 'all'}:${search || 'all'}:${role || 'all'}:${hasReactivationRequest ?? 'all'}`;
+
+        const cached = await this.redisService.get(cacheKey);
+        if (cached) {
+            return cached;
+        }
+
+        const skip = (page - 1) * limit;
+
+        const where: Prisma.UserWhereInput = {
+            status: UserStatus.INACTIVE,
+        };
+
+        if (role) {
+            where.role = role;
+        }
+
+        if (hasReactivationRequest === true) {
+            where.contactSubmissions = {
+                some: {
+                    status: 'PENDING',
+                },
+            };
+        }
+
+        if (email && email.trim() !== '') {
+            where.email = {
+                contains: email.trim(),
+                mode: 'insensitive',
+            };
+        }
+
+        if (search && search.trim() !== '') {
+            const searchTrimmed = search.trim();
+            if (where.email) {
+                where.AND = [
+                    { email: where.email },
+                    {
+                        OR: [
+                            { fullName: { contains: searchTrimmed, mode: 'insensitive' } },
+                            { phone: { contains: searchTrimmed, mode: 'insensitive' } },
+                            { email: { contains: searchTrimmed, mode: 'insensitive' } },
+                        ],
+                    },
+                ];
+                delete where.email;
+            } else {
+                where.OR = [
+                    { email: { contains: searchTrimmed, mode: 'insensitive' } },
+                    { fullName: { contains: searchTrimmed, mode: 'insensitive' } },
+                    { phone: { contains: searchTrimmed, mode: 'insensitive' } },
+                ];
+            }
+        }
+
+        const [users, total] = await Promise.all([
+            this.prisma.user.findMany({
+                where,
+                skip,
+                take: limit,
+                orderBy: {
+                    updatedAt: 'desc',
+                },
+                select: {
+                    id: true,
+                    fullName: true,
+                    email: true,
+                    phone: true,
+                    profileImage: true,
+                    role: true,
+                    status: true,
+                    isVerified: true,
+                    createdAt: true,
+                    updatedAt: true,
+                    contactSubmissions: {
+                        orderBy: {
+                            createdAt: 'desc',
+                        },
+                        take: 1,
+                        select: {
+                            id: true,
+                            subject: true,
+                            message: true,
+                            status: true,
+                            createdAt: true,
+                        },
+                    },
+                    traderProfile: {
+                        select: {
+                            companyName: true,
+                            verificationStatus: true,
+                        },
+                    },
+                },
+            }),
+            this.prisma.user.count({ where }),
+        ]);
+
+        const formattedUsers = users.map((u) => {
+            const latestContact = u.contactSubmissions?.[0] || null;
+            return {
+                id: u.id,
+                fullName: u.fullName,
+                email: u.email,
+                phone: u.phone,
+                profileImage: u.profileImage,
+                role: u.role,
+                status: u.status,
+                isVerified: u.isVerified,
+                createdAt: u.createdAt,
+                updatedAt: u.updatedAt,
+                traderProfile: u.traderProfile,
+                hasReactivationRequest: !!latestContact && latestContact.status === 'PENDING',
+                latestReactivationRequest: latestContact
+                    ? {
+                          id: latestContact.id,
+                          subject: latestContact.subject,
+                          message: latestContact.message.replace(/^\[Account Reactivation Request\]\s*/, ''),
+                          status: latestContact.status,
+                          submittedAt: latestContact.createdAt,
+                      }
+                    : null,
+            };
+        });
+
+        const result = {
+            success: true,
+            message: 'Deactivated accounts fetched successfully',
+            data: formattedUsers,
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages: Math.ceil(total / limit),
+            },
+        };
+
+        await this.redisService.set(cacheKey, result, 300);
+
+        return result;
+    }
+
+    async reactivateAccount(userId: string) {
+        const user = await this.prisma.user.findUnique({
+            where: { id: userId },
+        });
+
+        if (!user) {
+            throw new BadRequestException('User not found');
+        }
+
+        if (user.status === UserStatus.ACTIVE) {
+            throw new BadRequestException('Account is already active');
+        }
+
+        if (user.status !== UserStatus.INACTIVE) {
+            throw new BadRequestException(
+                `Only deactivated accounts can be reactivated (current status: ${user.status})`,
+            );
+        }
+
+        const updatedUser = await this.prisma.user.update({
+            where: { id: userId },
+            data: {
+                status: UserStatus.ACTIVE,
+            },
+            select: {
+                id: true,
+                fullName: true,
+                email: true,
+                phone: true,
+                role: true,
+                status: true,
+                isVerified: true,
+                createdAt: true,
+                updatedAt: true,
+            },
+        });
+
+        // Resolve pending reactivation contact submissions
+        try {
+            await this.prisma.contactSubmission.updateMany({
+                where: {
+                    userId,
+                    status: 'PENDING',
+                },
+                data: {
+                    status: 'RESOLVED',
+                },
+            });
+        } catch (err: any) {
+            this.logger.warn(`Failed to resolve contact submissions for user ${userId}: ${err?.message || err}`);
+        }
+
+        await Promise.all([
+            this.redisService.del(`admin:user-details:${userId}`),
+            this.redisService.del(`profile:${userId}`),
+            this.redisService.deleteByPattern('customers:*'),
+            this.redisService.deleteByPattern('traders:*'),
+            this.redisService.deleteByPattern('deactivated-accounts:*'),
+            this.redisService.deleteByPattern('contacts:admin:*'),
+            this.redisService.del(`registration-status:${userId}`),
+        ]);
+
+        try {
+            if (user.email) {
+                await this.mailService.sendMail({
+                    to: user.email,
+                    subject: 'Your Account Has Been Reactivated',
+                    html: `
+                        <div style="font-family: Arial, sans-serif; padding: 20px;">
+                            <h2>Account Reactivated</h2>
+                            <p>Hello ${user.fullName || 'there'},</p>
+                            <p>Your account has been successfully reactivated by an administrator.</p>
+                            <p>You can now log in and continue using our platform.</p>
+                            <br/>
+                            <p>Best regards,<br/><strong>Tuga Support Team</strong></p>
+                        </div>
+                    `,
+                });
+            }
+        } catch (error: any) {
+            this.logger.warn(
+                `Failed to send account reactivation email to ${user.email}: ${error?.message || error}`,
+            );
+        }
+
+        return {
+            success: true,
+            message: 'Account reactivated successfully',
+            data: updatedUser,
+        };
+    }
 }
