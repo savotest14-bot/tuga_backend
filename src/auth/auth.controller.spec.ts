@@ -33,20 +33,7 @@ describe('AuthController', () => {
     expect(controller).toBeDefined();
   });
 
-  describe('contactAdmin', () => {
-    it('should call authService.requestReactivation with dto', async () => {
-      const dto = { email: 'user@example.com', message: 'Please reactivate my account' };
-      const mockResult = { success: true, message: 'Request submitted' };
-      authService.requestReactivation.mockResolvedValue(mockResult);
-
-      const result = await controller.contactAdmin(dto);
-
-      expect(result).toBe(mockResult);
-      expect(authService.requestReactivation).toHaveBeenCalledWith(dto);
-    });
-  });
-
-  describe('requestReactivation (alias)', () => {
+  describe('requestReactivation', () => {
     it('should call authService.requestReactivation with dto', async () => {
       const dto = { email: 'user@example.com', message: 'Please reactivate my account' };
       const mockResult = { success: true, message: 'Request submitted' };

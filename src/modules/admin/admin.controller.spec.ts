@@ -55,22 +55,7 @@ describe('AdminController', () => {
     });
   });
 
-  describe('reactivateAccount', () => {
-    it('should call adminService.reactivateAccount with userId', async () => {
-      const mockResponse = {
-        success: true,
-        message: 'Account reactivated successfully',
-      };
-      adminService.reactivateAccount.mockResolvedValue(mockResponse);
-
-      const result = await controller.reactivateAccount('test-user-id');
-
-      expect(result).toBe(mockResponse);
-      expect(adminService.reactivateAccount).toHaveBeenCalledWith('test-user-id');
-    });
-  });
-
-  describe('reactivateUser (alias)', () => {
+  describe('reactivateUser', () => {
     it('should call adminService.reactivateAccount with userId', async () => {
       const mockResponse = {
         success: true,
