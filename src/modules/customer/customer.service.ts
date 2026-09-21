@@ -597,6 +597,7 @@ export class CustomerService {
                     select: {
                         id: true,
                         name: true,
+                        image: true,
                     },
                 }),
 
@@ -609,6 +610,7 @@ export class CustomerService {
                     select: {
                         id: true,
                         name: true,
+                        image: true,
                     },
                 }),
 
@@ -621,24 +623,25 @@ export class CustomerService {
                     select: {
                         id: true,
                         name: true,
+                        image: true,
                     },
                 }),
             ]);
 
         // Create lookup maps
         const categoryMap = new Map(
-            categories.map((item) => [item.id, item.name]),
+            categories.map((item) => [item.id, { name: item.name, image: item.image }]),
         );
 
         const skillServiceMap = new Map(
-            skillServices.map((item) => [item.id, item.name]),
+            skillServices.map((item) => [item.id, { name: item.name, image: item.image }]),
         );
 
         const subCategoryMap = new Map(
-            subCategories.map((item) => [item.id, item.name]),
+            subCategories.map((item) => [item.id, { name: item.name, image: item.image }]),
         );
 
-        // Attach names
+        // Attach names and images
         const updatedSavedTraders = savedTraders.map((savedTrader) => {
             const profile = savedTrader.trader.traderProfile;
 
@@ -657,28 +660,40 @@ export class CustomerService {
 
                         tradeCategoryDetails: (
                             profile.tradeCategories || []
-                        ).map((id) => ({
-                            id,
-                            name: categoryMap.get(id) || null,
-                        })),
+                        ).map((id) => {
+                            const item = categoryMap.get(id);
+                            return {
+                                id,
+                                name: item?.name || null,
+                                image: item?.image || null,
+                            };
+                        }),
 
                         skillsServices: profile.skillsServices,
 
                         skillServiceDetails: (
                             profile.skillsServices || []
-                        ).map((id) => ({
-                            id,
-                            name: skillServiceMap.get(id) || null,
-                        })),
+                        ).map((id) => {
+                            const item = skillServiceMap.get(id);
+                            return {
+                                id,
+                                name: item?.name || null,
+                                image: item?.image || null,
+                            };
+                        }),
 
                         subCategories: profile.subCategories,
 
                         subCategoryDetails: (
                             profile.subCategories || []
-                        ).map((id) => ({
-                            id,
-                            name: subCategoryMap.get(id) || null,
-                        })),
+                        ).map((id) => {
+                            const item = subCategoryMap.get(id);
+                            return {
+                                id,
+                                name: item?.name || null,
+                                image: item?.image || null,
+                            };
+                        }),
                     },
                 },
             };
