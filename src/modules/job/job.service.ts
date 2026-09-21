@@ -842,7 +842,20 @@ export class JobService {
                                 id: true,
                                 fullName: true,
                                 email: true,
-                                profileImage:true,
+                                phone: true,
+                                profileImage: true,
+                                traderProfile: {
+                                    select: {
+                                        companyName: true,
+                                        displayName: true,
+                                    },
+                                },
+                            },
+                        },
+
+                        quotes: {
+                            include: {
+                                attachments: true,
                             },
                         },
 
@@ -869,24 +882,69 @@ export class JobService {
         const result = {
             message: 'Jobs fetched successfully',
 
-            data: jobs.map((job) => ({
-                ...job,
+            data: jobs.map((job) => {
+                const selectedQuoteRaw = job.selectedTraderId
+                    ? job.quotes.find((q) => q.traderId === job.selectedTraderId) ||
+                    job.quotes.find((q) => q.status === 'ACCEPTED') ||
+                    null
+                    : null;
 
-                category: job.categories[0] || null,
-                skillService: job.skillServices[0] || null,
-                subCategory: job.subCategories[0] || null,
+                const selectedQuote = selectedQuoteRaw
+                    ? {
+                        ...selectedQuoteRaw,
+                        price: selectedQuoteRaw.price
+                            ? parseFloat(selectedQuoteRaw.price.toString())
+                            : null,
+                        attachments:
+                            selectedQuoteRaw.attachments?.map((attachment) => ({
+                                ...attachment,
+                                url: attachment.file.startsWith('http')
+                                    ? attachment.file
+                                    : `${process.env.APP_URL}/${attachment.file}`,
+                            })) || [],
+                    }
+                    : null;
 
-                attachments:
-                    job.attachments.map(
-                        (attachment) => ({
-                            ...attachment,
-                            url: `${process.env.APP_URL}/${attachment.file}`,
-                        }),
-                    ),
+                const formattedSelectedTrader = job.selectedTrader
+                    ? {
+                        ...job.selectedTrader,
+                        profileImage: job.selectedTrader.profileImage
+                            ? (job.selectedTrader.profileImage.startsWith('http')
+                                ? job.selectedTrader.profileImage
+                                : `${process.env.APP_URL}/${job.selectedTrader.profileImage}`)
+                            : null,
+                        quote: selectedQuote,
+                    }
+                    : null;
 
-                quotesCount:
-                    job._count.quotes,
-            })),
+                const { quotes, ...jobWithoutQuotes } = job;
+
+                return {
+                    ...jobWithoutQuotes,
+
+                    category: job.categories[0] || null,
+                    skillService: job.skillServices[0] || null,
+                    subCategory: job.subCategories[0] || null,
+
+                    attachments:
+                        job.attachments.map(
+                            (attachment) => ({
+                                ...attachment,
+                                url: attachment.file.startsWith('http')
+                                    ? attachment.file
+                                    : `${process.env.APP_URL}/${attachment.file}`,
+                            }),
+                        ),
+
+                    selectedTrader: formattedSelectedTrader,
+                    assignedTrader: formattedSelectedTrader,
+                    quote: selectedQuote,
+                    selectedQuote,
+
+                    quotesCount:
+                        job._count.quotes,
+                };
+            }),
 
             meta: {
                 total,

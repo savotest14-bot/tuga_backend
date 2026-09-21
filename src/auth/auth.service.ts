@@ -1469,7 +1469,7 @@ export class AuthService {
             ).toString();
 
             await this.prisma.user.update({
-                where: { 
+                where: {
                     id: user.id,
                 },
                 data: {
