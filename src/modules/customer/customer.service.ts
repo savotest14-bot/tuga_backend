@@ -496,13 +496,13 @@ export class CustomerService {
 
         const skip = (page - 1) * limit;
 
-        const cacheKey = `saved-traders:${customerId}:${page}:${limit}`;
+        // const cacheKey = `saved-traders:${customerId}:${page}:${limit}`;
 
-        const cached = await this.redisService.get(cacheKey);
+        // const cached = await this.redisService.get(cacheKey);
 
-        if (cached) {
-            return cached;
-        }
+        // if (cached) {
+        //     return cached;
+        // }
 
         const [savedTraders, total] = await Promise.all([
             this.prisma.savedTrader.findMany({
@@ -710,11 +710,11 @@ export class CustomerService {
             },
         };
 
-        await this.redisService.set(
-            cacheKey,
-            result,
-            300,
-        );
+        // await this.redisService.set(
+        //     cacheKey,
+        //     result,
+        //     300,
+        // );
 
         return result;
     }
