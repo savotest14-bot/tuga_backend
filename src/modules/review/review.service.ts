@@ -12,6 +12,7 @@ import {
     ReviewModerationType,
     NoWorkReason,
     ContentType,
+    DirectJobStatus,
     Prisma
 } from '@prisma/client';
 
@@ -130,6 +131,55 @@ export class ReviewService {
 
         /*
         |--------------------------------------------------------------------------
+        | DIRECT JOB VALIDATION
+        |--------------------------------------------------------------------------
+        */
+
+        if (dto.directJobId) {
+            const directJob = await this.prisma.directJob.findUnique({
+                where: {
+                    id: dto.directJobId,
+                },
+            });
+
+            if (!directJob) {
+                throw new NotFoundException(
+                    'Direct job not found',
+                );
+            }
+
+            if (directJob.customerId !== customerId) {
+                throw new ForbiddenException(
+                    'Unauthorized to review this direct job',
+                );
+            }
+
+            if (directJob.status !== DirectJobStatus.COMPLETED) {
+                throw new BadRequestException(
+                    'Direct job must be completed before leaving a review',
+                );
+            }
+
+            const existingDirectReview = await this.prisma.review.findFirst({
+                where: {
+                    customerId,
+                    directJobId: dto.directJobId,
+                    deletedAt: null,
+                },
+            });
+
+            if (existingDirectReview) {
+                throw new BadRequestException(
+                    'You already reviewed this direct job',
+                );
+            }
+
+            // Ensure traderId matches the direct job trader
+            dto.traderId = directJob.traderId;
+        }
+
+        /*
+        |--------------------------------------------------------------------------
         | REVIEW SETTINGS
         |--------------------------------------------------------------------------
         */
@@ -153,18 +203,21 @@ export class ReviewService {
             !dto.wasWorkCompleted
                 ? dto.noWorkReasonText ?? null
                 : null;
+
+        const isVerifiedPlatformJob =
+            dto.reviewType === ReviewType.JOB || !!dto.directJobId;
+
         const moderationType: ReviewModerationType =
-            dto.reviewType === ReviewType.JOB
+            isVerifiedPlatformJob
                 ? ReviewModerationType.AUTO
                 : ReviewModerationType.MANUAL;
 
         const status: ReviewStatus =
-            dto.reviewType === ReviewType.JOB
+            isVerifiedPlatformJob
                 ? ReviewStatus.APPROVED
                 : ReviewStatus.PENDING;
 
-        const isVerified =
-            dto.reviewType === ReviewType.JOB;
+        const isVerified = isVerifiedPlatformJob;
 
         /*
         |--------------------------------------------------------------------------
@@ -178,6 +231,7 @@ export class ReviewService {
                 traderId: dto.traderId || null,
 
                 jobId: dto.jobId,
+                directJobId: dto.directJobId || null,
 
                 reviewType: dto.reviewType,
 

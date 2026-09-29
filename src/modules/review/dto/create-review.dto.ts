@@ -39,6 +39,13 @@ export class CreateReviewDto {
   @IsUUID()
   jobId?: string;
 
+  @ApiPropertyOptional({
+    description: 'Direct job ID if review is for a completed direct job',
+  })
+  @IsOptional()
+  @IsUUID()
+  directJobId?: string;
+
   @ApiProperty({
     enum: ReviewType,
   })

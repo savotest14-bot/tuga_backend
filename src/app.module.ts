@@ -49,6 +49,7 @@ import { ViolationKeywordSeeder } from './common/seeder/violation-keyword.seeder
 import { ModerationModule } from './modules/moderation/moderation.module';
 import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { DirectJobModule } from './modules/direct-job/direct-job.module';
 
 @Module({
   imports: [
@@ -118,6 +119,8 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
     ModerationModule,
 
     DashboardModule,
+
+    DirectJobModule,
 
   ],
 

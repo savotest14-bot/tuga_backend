@@ -37,6 +37,8 @@ import { GetPendingReviewsQueryDto } from './dto/get-pending-reviews-query.dto';
 import { GetCategoryChangeRequestsQueryDto } from './dto/get-category-change-requests-query.dto';
 import { GetAdminJobActionLogsQueryDto } from './dto/get-admin-job-action-logs-query.dto';
 import { GetDeactivatedAccountsQueryDto } from './dto/get-deactivated-accounts-query.dto';
+import { GetAdminDirectJobsQueryDto } from './dto/get-admin-direct-jobs-query.dto';
+import { UpdateDirectJobStatusDto } from './dto/update-direct-job-status.dto';
 import { Role } from '@prisma/client';
 
 import type { Request } from 'express';
@@ -404,5 +406,51 @@ export class AdminController {
         @Param('userId', ParseUUIDPipe) userId: string,
     ) {
         return this.adminService.reactivateAccount(userId);
+    }
+
+    // =========================
+    // DIRECT JOBS (ADMIN)
+    // =========================
+
+    @Get('direct-jobs')
+    @ApiBearerAuth('access-token')
+    @ApiOperation({ summary: 'Get all direct jobs with pagination and filters' })
+    async getAdminDirectJobs(
+        @Query() query: GetAdminDirectJobsQueryDto,
+    ) {
+        return this.adminService.getAdminDirectJobs(query);
+    }
+
+    @Get('direct-jobs/stats')
+    @ApiBearerAuth('access-token')
+    @ApiOperation({ summary: 'Get statistics overview of direct jobs' })
+    async getAdminDirectJobStats() {
+        return this.adminService.getAdminDirectJobStats();
+    }
+
+    @Get('direct-jobs/:id')
+    @ApiBearerAuth('access-token')
+    @ApiOperation({ summary: 'Get full details of a specific direct job' })
+    @ApiParam({ name: 'id', type: String, example: '4d0840bb-4aff-4a20-a2a4-253f48e722d2' })
+    async getAdminDirectJobDetails(
+        @Param('id', ParseUUIDPipe) id: string,
+    ) {
+        return this.adminService.getAdminDirectJobDetails(id);
+    }
+
+    @Patch('direct-jobs/:id/status')
+    @ApiBearerAuth('access-token')
+    @ApiOperation({ summary: 'Update direct job status (admin override)' })
+    @ApiParam({ name: 'id', type: String, example: '4d0840bb-4aff-4a20-a2a4-253f48e722d2' })
+    async updateAdminDirectJobStatus(
+        @Req() req: Request,
+        @Param('id', ParseUUIDPipe) id: string,
+        @Body() dto: UpdateDirectJobStatusDto,
+    ) {
+        return this.adminService.updateAdminDirectJobStatus(
+            req['user'].id,
+            id,
+            dto,
+        );
     }
 }

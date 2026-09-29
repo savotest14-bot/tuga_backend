@@ -14,6 +14,7 @@ import {
 } from 'src/prisma/prisma.service';
 
 import {
+    DirectJobStatus,
     Prisma,
     ReviewStatus,
     Role,
@@ -33,6 +34,9 @@ import { GetManualReviewJobsDto } from './dto/get-manual-review-job.dto';
 import { ApiBearerAuth } from '@nestjs/swagger';
 import { GetReviewsDto } from './dto/get-review.dto';
 import { GetAllQuotesDto } from './dto/get-all-quote.dto';
+import { SocketService } from 'src/socket/socket.service';
+import { GetAdminDirectJobsQueryDto } from './dto/get-admin-direct-jobs-query.dto';
+import { UpdateDirectJobStatusDto } from './dto/update-direct-job-status.dto';
 
 @Injectable()
 export class AdminService {
@@ -42,6 +46,7 @@ export class AdminService {
         private mailService: MailService,
         private notificationService: NotificationService,
         private redisService: RedisService,
+        private socketService: SocketService,
     ) { }
 
     // =========================
@@ -2900,6 +2905,352 @@ export class AdminService {
             success: true,
             message: 'Account reactivated successfully',
             data: updatedUser,
+        };
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | DIRECT JOBS (ADMIN)
+    |--------------------------------------------------------------------------
+    */
+
+    async getAdminDirectJobs(query: GetAdminDirectJobsQueryDto) {
+        const {
+            page = 1,
+            limit = 10,
+            status,
+            search,
+            dateFrom,
+            dateTo,
+        } = query;
+
+        const skip = (page - 1) * limit;
+
+        const where: Prisma.DirectJobWhereInput = {};
+
+        if (status) {
+            where.status = status;
+        }
+
+        if (search && search.trim()) {
+            const searchTerm = search.trim();
+            where.OR = [
+                { title: { contains: searchTerm, mode: 'insensitive' } },
+                { description: { contains: searchTerm, mode: 'insensitive' } },
+                { customer: { fullName: { contains: searchTerm, mode: 'insensitive' } } },
+                { customer: { email: { contains: searchTerm, mode: 'insensitive' } } },
+                { trader: { fullName: { contains: searchTerm, mode: 'insensitive' } } },
+                { trader: { email: { contains: searchTerm, mode: 'insensitive' } } },
+            ];
+        }
+
+        if (dateFrom || dateTo) {
+            where.createdAt = {
+                ...(dateFrom ? { gte: new Date(dateFrom) } : {}),
+                ...(dateTo ? { lte: new Date(dateTo) } : {}),
+            };
+        }
+
+        const [total, data] = await Promise.all([
+            this.prisma.directJob.count({ where }),
+            this.prisma.directJob.findMany({
+                where,
+                skip,
+                take: limit,
+                orderBy: { createdAt: 'desc' },
+                include: {
+                    customer: {
+                        select: {
+                            id: true,
+                            fullName: true,
+                            email: true,
+                            phone: true,
+                            profileImage: true,
+                        },
+                    },
+                    trader: {
+                        select: {
+                            id: true,
+                            fullName: true,
+                            email: true,
+                            phone: true,
+                            profileImage: true,
+                            traderProfile: {
+                                select: {
+                                    companyName: true,
+                                    displayName: true,
+                                    tradeCategories: true,
+                                },
+                            },
+                        },
+                    },
+                    reviews: {
+                        where: { deletedAt: null },
+                        select: {
+                            id: true,
+                            rating: true,
+                            review: true,
+                            status: true,
+                            isVerified: true,
+                        },
+                    },
+                },
+            }),
+        ]);
+
+        return {
+            success: true,
+            data,
+            pagination: {
+                page,
+                limit,
+                total,
+                totalPages: Math.ceil(total / limit),
+            },
+        };
+    }
+
+    async getAdminDirectJobStats() {
+        const [
+            total,
+            inProgress,
+            awaitingConfirmation,
+            completed,
+            cancelled,
+            priceAggregate,
+        ] = await Promise.all([
+            this.prisma.directJob.count(),
+            this.prisma.directJob.count({
+                where: { status: DirectJobStatus.IN_PROGRESS },
+            }),
+            this.prisma.directJob.count({
+                where: { status: DirectJobStatus.AWAITING_CONFIRMATION },
+            }),
+            this.prisma.directJob.count({
+                where: { status: DirectJobStatus.COMPLETED },
+            }),
+            this.prisma.directJob.count({
+                where: { status: DirectJobStatus.CANCELLED },
+            }),
+            this.prisma.directJob.aggregate({
+                _sum: {
+                    agreedPrice: true,
+                },
+                _avg: {
+                    agreedPrice: true,
+                },
+            }),
+        ]);
+
+        return {
+            success: true,
+            data: {
+                total,
+                inProgress,
+                awaitingConfirmation,
+                completed,
+                cancelled,
+                totalVolume: priceAggregate._sum.agreedPrice || 0,
+                averagePrice: priceAggregate._avg.agreedPrice || 0,
+            },
+        };
+    }
+
+    async getAdminDirectJobDetails(id: string) {
+        const directJob = await this.prisma.directJob.findUnique({
+            where: { id },
+            include: {
+                conversation: {
+                    include: {
+                        messages: {
+                            take: 50,
+                            orderBy: { createdAt: 'desc' },
+                            include: {
+                                sender: {
+                                    select: {
+                                        id: true,
+                                        fullName: true,
+                                        email: true,
+                                        profileImage: true,
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+                customer: {
+                    select: {
+                        id: true,
+                        fullName: true,
+                        email: true,
+                        phone: true,
+                        profileImage: true,
+                        status: true,
+                        createdAt: true,
+                    },
+                },
+                trader: {
+                    select: {
+                        id: true,
+                        fullName: true,
+                        email: true,
+                        phone: true,
+                        profileImage: true,
+                        status: true,
+                        createdAt: true,
+                        traderProfile: true,
+                        traderMetrics: true,
+                    },
+                },
+                reviews: {
+                    where: { deletedAt: null },
+                    include: {
+                        proofs: true,
+                    },
+                },
+            },
+        });
+
+        if (!directJob) {
+            throw new NotFoundException('Direct job not found');
+        }
+
+        return {
+            success: true,
+            data: directJob,
+        };
+    }
+
+    async updateAdminDirectJobStatus(
+        adminId: string,
+        id: string,
+        dto: UpdateDirectJobStatusDto,
+    ) {
+        const directJob = await this.prisma.directJob.findUnique({
+            where: { id },
+            include: {
+                customer: { select: { id: true, fullName: true, email: true } },
+                trader: { select: { id: true, fullName: true, email: true } },
+            },
+        });
+
+        if (!directJob) {
+            throw new NotFoundException('Direct job not found');
+        }
+
+        const prevStatus = directJob.status;
+        const newStatus = dto.status;
+
+        const updateData: Prisma.DirectJobUpdateInput = {
+            status: newStatus,
+        };
+
+        if (newStatus === DirectJobStatus.COMPLETED && !directJob.confirmedAt) {
+            updateData.confirmedAt = new Date();
+            if (!directJob.completedAt) {
+                updateData.completedAt = new Date();
+            }
+        }
+
+        if (newStatus === DirectJobStatus.CANCELLED) {
+            updateData.cancelledAt = new Date();
+            if (dto.reason) {
+                updateData.cancelReason = dto.reason;
+            }
+        }
+
+        const updated = await this.prisma.$transaction(async (tx) => {
+            const job = await tx.directJob.update({
+                where: { id },
+                data: updateData,
+                include: {
+                    customer: {
+                        select: {
+                            id: true,
+                            fullName: true,
+                            email: true,
+                            profileImage: true,
+                        },
+                    },
+                    trader: {
+                        select: {
+                            id: true,
+                            fullName: true,
+                            email: true,
+                            profileImage: true,
+                        },
+                    },
+                    reviews: true,
+                },
+            });
+
+            // If newly marked COMPLETED by admin, increment completedJobs
+            if (
+                newStatus === DirectJobStatus.COMPLETED &&
+                prevStatus !== DirectJobStatus.COMPLETED
+            ) {
+                await tx.traderMetrics.upsert({
+                    where: { traderId: directJob.traderId },
+                    create: {
+                        traderId: directJob.traderId,
+                        completedJobs: 1,
+                    },
+                    update: {
+                        completedJobs: { increment: 1 },
+                    },
+                });
+            }
+
+            return job;
+        });
+
+        this.logger.log(
+            `Admin ${adminId} updated DirectJob ${id} status from ${prevStatus} to ${newStatus}`,
+        );
+
+        // Notify customer and trader
+        await Promise.all([
+            this.notificationService
+                .createNotification(
+                    directJob.customerId,
+                    'Direct Job Status Updated by Support',
+                    `Your direct job status was updated to ${newStatus} by admin.${dto.reason ? ` Note: ${dto.reason}` : ''}`,
+                    'ADMIN_DIRECT_JOB_STATUS_CHANGE',
+                    { directJobId: id, conversationId: directJob.conversationId },
+                )
+                .catch(() => {}),
+            this.notificationService
+                .createNotification(
+                    directJob.traderId,
+                    'Direct Job Status Updated by Support',
+                    `Your direct job status was updated to ${newStatus} by admin.${dto.reason ? ` Note: ${dto.reason}` : ''}`,
+                    'ADMIN_DIRECT_JOB_STATUS_CHANGE',
+                    { directJobId: id, conversationId: directJob.conversationId },
+                )
+                .catch(() => {}),
+        ]);
+
+        this.socketService.emitToRoom(
+            directJob.conversationId,
+            'directJobUpdated',
+            updated,
+        );
+        this.socketService.emitToUser(
+            directJob.customerId,
+            'directJobUpdated',
+            updated,
+        );
+        this.socketService.emitToUser(
+            directJob.traderId,
+            'directJobUpdated',
+            updated,
+        );
+        this.socketService.emitToRoom('admins', 'directJobUpdated', updated);
+
+        return {
+            success: true,
+            message: `Direct job status updated to ${newStatus}`,
+            data: updated,
         };
     }
 }

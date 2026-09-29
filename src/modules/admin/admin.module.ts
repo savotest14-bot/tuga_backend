@@ -29,6 +29,7 @@ import { AuthModule } from 'src/auth/auth.module';
 import { MailModule } from 'src/common/mail/mail.module';
 import { NotificationModule } from '../notification/notification.module';
 import { RedisModule } from 'src/redis/redis.module';
+import { SocketModule } from 'src/socket/socket.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { RedisModule } from 'src/redis/redis.module';
     MailModule,
     NotificationModule,
     RedisModule,
+    SocketModule,
   ],
   controllers: [
     AdminController,

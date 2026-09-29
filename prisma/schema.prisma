@@ -92,6 +92,8 @@ model User {
   contentFlags ContentFlag[]
 
   adminJobActionLogs AdminJobActionLog[]
+  customerDirectJobs DirectJob[] @relation("CustomerDirectJobs")
+  traderDirectJobs   DirectJob[] @relation("TraderDirectJobs")
   
   @@index([role, status, isVerified])
   @@index([latitude, longitude])
@@ -948,6 +950,8 @@ model Conversation {
 
   messages Message[]
 
+  directJobs DirectJob[]
+
   @@unique([customerId, traderId, type, jobId])
   @@index([jobId])
   @@index([customerId])
@@ -972,6 +976,60 @@ model Message {
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   sender User @relation("UserMessages", fields: [senderId], references: [id])
+}
+
+enum DirectJobStatus {
+  IN_PROGRESS
+  AWAITING_CONFIRMATION
+  COMPLETED
+  CANCELLED
+}
+
+model DirectJob {
+  id                 String          @id @default(uuid())
+
+  conversationId     String
+
+  customerId         String
+
+  traderId           String
+
+  title              String?
+
+  description        String?         @db.Text
+
+  agreedPrice        Decimal?        @db.Decimal(10, 2)
+
+  status             DirectJobStatus @default(IN_PROGRESS)
+
+  startedAt          DateTime        @default(now())
+
+  completedAt        DateTime?
+
+  confirmedAt        DateTime?
+
+  cancelledAt        DateTime?
+
+  cancelReason       String?
+
+  lastReminderSentAt DateTime?
+
+  createdAt          DateTime        @default(now())
+
+  updatedAt          DateTime        @updatedAt
+
+  conversation       Conversation    @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  customer           User            @relation("CustomerDirectJobs", fields: [customerId], references: [id], onDelete: Cascade)
+
+  trader             User            @relation("TraderDirectJobs", fields: [traderId], references: [id], onDelete: Cascade)
+
+  reviews            Review[]
+
+  @@index([conversationId])
+  @@index([customerId, status])
+  @@index([traderId, status])
+  @@index([status, createdAt])
 }
 
 enum ReviewType {
@@ -1057,11 +1115,16 @@ model Review {
 
   job Job? @relation(fields: [jobId], references: [id], onDelete: SetNull)
 
+  directJobId String?
+
+  directJob DirectJob? @relation(fields: [directJobId], references: [id], onDelete: SetNull)
+
   proofs ReviewProof[]
 
   @@index([traderId, status])
   @@index([customerId])
   @@index([jobId])
+  @@index([directJobId])
   @@index([createdAt])
 }
 
