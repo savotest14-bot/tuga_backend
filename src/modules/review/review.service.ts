@@ -349,6 +349,7 @@ export class ReviewService {
             ),
             this.redisService.deleteByPattern('admin:reviews:*'),
             this.redisService.deleteByPattern(`public:reviews:*`),
+            this.redisService.deleteByPattern('reviews:latest:*'),
         ];
 
         if (dto.traderId) {
@@ -734,6 +735,7 @@ export class ReviewService {
                 ),
                 this.redisService.deleteByPattern('admin:reviews:*'),
                 this.redisService.deleteByPattern(`public:reviews:*`),
+                this.redisService.deleteByPattern('reviews:latest:*'),
             ];
 
             if (review.traderId) {
@@ -814,6 +816,8 @@ export class ReviewService {
                 `review:detail:${reviewId}:*`,
             ),
             this.redisService.deleteByPattern('admin:reviews:*'),
+            this.redisService.deleteByPattern('public:reviews:*'),
+            this.redisService.deleteByPattern('reviews:latest:*'),
         ];
 
         if (review.traderId) {
@@ -1194,6 +1198,7 @@ export class ReviewService {
             ),
             this.redisService.deleteByPattern('admin:reviews:*'),
             this.redisService.deleteByPattern(`public:reviews:*`),
+            this.redisService.deleteByPattern('reviews:latest:*'),
         ];
 
         if (review.traderId) {
@@ -1327,6 +1332,7 @@ export class ReviewService {
             ),
             this.redisService.deleteByPattern('admin:reviews:*'),
             this.redisService.deleteByPattern(`public:reviews:*`),
+            this.redisService.deleteByPattern('reviews:latest:*'),
         ]);
 
         /*
@@ -1511,11 +1517,16 @@ export class ReviewService {
         return result;
     }
 
-    async getPublicReviews(
+    /*
+    |--------------------------------------------------------------------------
+    | GET LATEST REVIEWS (FOR USERS / PUBLIC)
+    |--------------------------------------------------------------------------
+    */
+    async getLatestReviews(
         page: number = 1,
         limit: number = 10,
     ) {
-        const cacheKey = `public:reviews:${page}:${limit}`;
+        const cacheKey = `reviews:latest:${page}:${limit}`;
 
         const cached = await this.redisService.get(cacheKey);
 
@@ -1525,14 +1536,18 @@ export class ReviewService {
 
         const skip = (page - 1) * limit;
 
+        const whereCondition: Prisma.ReviewWhereInput = {
+            status: ReviewStatus.APPROVED,
+            deletedAt: null,
+            OR: [
+                { reviewRequestExpiresAt: null },
+                { reviewRequestExpiresAt: { gt: new Date() } },
+            ],
+        };
+
         const [reviews, total] = await Promise.all([
             this.prisma.review.findMany({
-                where: {
-                    status: ReviewStatus.APPROVED,
-                    reviewRequestExpiresAt: {
-                        gt: new Date(),
-                    },
-                },
+                where: whereCondition,
                 include: {
                     customer: {
                         select: {
@@ -1557,6 +1572,13 @@ export class ReviewService {
                             },
                         },
                     },
+                    proofs: {
+                        select: {
+                            id: true,
+                            fileUrl: true,
+                            mimeType: true,
+                        },
+                    },
                 },
                 orderBy: {
                     createdAt: 'desc',
@@ -1565,12 +1587,7 @@ export class ReviewService {
                 take: limit,
             }),
             this.prisma.review.count({
-                where: {
-                    status: ReviewStatus.APPROVED,
-                    reviewRequestExpiresAt: {
-                        gt: new Date(),
-                    },
-                },
+                where: whereCondition,
             }),
         ]);
 
@@ -1656,15 +1673,15 @@ export class ReviewService {
         // ===========================
 
         const tradeCategoryMap = new Map(
-            tradeCategories.map((item) => [item.id, item]),
+            tradeCategories.map((item) => [item.id, item] as const),
         );
 
         const skillServiceMap = new Map(
-            skillServices.map((item) => [item.id, item]),
+            skillServices.map((item) => [item.id, item] as const),
         );
 
         const subCategoryMap = new Map(
-            subCategories.map((item) => [item.id, item]),
+            subCategories.map((item) => [item.id, item] as const),
         );
 
         // ===========================
@@ -1681,7 +1698,7 @@ export class ReviewService {
                             ...review.trader.traderProfile,
 
                             tradeCategories:
-                                review.trader.traderProfile.tradeCategories.map(
+                                (review.trader.traderProfile.tradeCategories ?? []).map(
                                     (id) =>
                                         tradeCategoryMap.get(id) ?? {
                                             id,
@@ -1690,7 +1707,7 @@ export class ReviewService {
                                 ),
 
                             skillsServices:
-                                review.trader.traderProfile.skillsServices.map(
+                                (review.trader.traderProfile.skillsServices ?? []).map(
                                     (id) =>
                                         skillServiceMap.get(id) ?? {
                                             id,
@@ -1699,7 +1716,7 @@ export class ReviewService {
                                 ),
 
                             subCategories:
-                                review.trader.traderProfile.subCategories.map(
+                                (review.trader.traderProfile.subCategories ?? []).map(
                                     (id) =>
                                         subCategoryMap.get(id) ?? {
                                             id,
@@ -1713,7 +1730,7 @@ export class ReviewService {
         }));
 
         const result = {
-            message: 'Approved reviews fetched successfully',
+            message: 'Latest reviews fetched successfully',
             data: formattedReviews,
             pagination: {
                 total,
@@ -1730,5 +1747,12 @@ export class ReviewService {
         );
 
         return result;
+    }
+
+    async getPublicReviews(
+        page: number = 1,
+        limit: number = 10,
+    ) {
+        return this.getLatestReviews(page, limit);
     }
 }

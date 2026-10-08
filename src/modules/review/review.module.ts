@@ -47,6 +47,10 @@ export class ReviewModule implements NestModule {
         path: 'reviews/all/public',
         method: RequestMethod.GET,
       },
+      {
+        path: 'reviews/latest',
+        method: RequestMethod.GET,
+      },
     ).forRoutes(ReviewController);
   }
 }

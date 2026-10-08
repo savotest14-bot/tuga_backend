@@ -930,6 +930,7 @@ export class AdminService {
             ),
             this.redisService.deleteByPattern('admin:reviews:*'),
             this.redisService.deleteByPattern(`public:reviews:*`),
+            this.redisService.deleteByPattern('reviews:latest:*'),
         ];
 
         if (review.traderId) {

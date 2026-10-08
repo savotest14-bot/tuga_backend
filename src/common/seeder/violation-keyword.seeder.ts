@@ -13,11 +13,10 @@ import {
 
 @Injectable()
 export class ViolationKeywordSeeder
-  implements OnModuleInit
-{
+  implements OnModuleInit {
   constructor(
     private readonly prisma: PrismaService,
-  ) {}
+  ) { }
 
   async onModuleInit() {
     await this.seedViolationKeywords();

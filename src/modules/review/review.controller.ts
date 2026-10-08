@@ -349,31 +349,24 @@ export class ReviewController {
         );
     }
 
-    @Get(':reviewId')
+    /*
+    |--------------------------------------------------------------------------
+    | GET LATEST REVIEWS (FOR USERS / PUBLIC)
+    |--------------------------------------------------------------------------
+    */
 
-    @ApiBearerAuth('access-token')
-
+    @Get('latest')
     @ApiOperation({
-        summary:
-            'Get review by id',
+        summary: 'Get all latest approved reviews with pagination (Public / Users)',
     })
-
-
-    async getReviewById(
-
-        @Req()
-        req: Request,
-
-        @Param('reviewId', ParseUUIDPipe)
-        reviewId: string,
-
+    @ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
+    @ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })
+    async getLatestReviews(
+        @Query() query: GetTraderReviewsQueryDto,
     ) {
-
-        return this.reviewService.getReviewById(
-
-            req['user'].id,
-
-            reviewId,
+        return this.reviewService.getLatestReviews(
+            query.page ?? 1,
+            query.limit ?? 10,
         );
     }
 
@@ -381,15 +374,38 @@ export class ReviewController {
     @ApiOperation({
         summary: 'Get all approved reviews (Public)',
     })
-    @ApiQuery({ name: 'page', required: false })
-    @ApiQuery({ name: 'limit', required: false })
+    @ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
+    @ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })
     async getPublicReviews(
         @Query() query: GetTraderReviewsQueryDto,
     ) {
-        return this.reviewService.getPublicReviews(
+        return this.reviewService.getLatestReviews(
             query.page ?? 1,
             query.limit ?? 10,
         );
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | GET REVIEW BY ID
+    |--------------------------------------------------------------------------
+    */
+
+    @Get(':reviewId')
+    @ApiBearerAuth('access-token')
+    @ApiOperation({
+        summary:
+            'Get review by id',
+    })
+    async getReviewById(
+        @Req()
+        req: Request,
+        @Param('reviewId', ParseUUIDPipe)
+        reviewId: string,
+    ) {
+        return this.reviewService.getReviewById(
+            req['user'].id,
+            reviewId,
+        );
+    }
 }
