@@ -10,6 +10,7 @@ import { NotificationService } from '../notification/notification.service';
 import { ContactStatus, ContactSubject } from '@prisma/client';
 import { GetContactsQueryDto } from './dto/get-contacts.dto';
 import { NotFoundException } from '@nestjs/common';
+import { getFileUrl } from 'src/common/helpers/multer.helper';
 
 @Injectable()
 export class ContactService {
@@ -41,7 +42,7 @@ export class ContactService {
             if (attachments.length > 0) {
                 const attachmentData = attachments.map((file) => ({
                     contactSubmissionId: contact.id,
-                    fileUrl: `/uploads/contacts/${file.filename}`,
+                    fileUrl: getFileUrl(file, 'contacts'),
                     mimeType: file.mimetype,
                 }));
 

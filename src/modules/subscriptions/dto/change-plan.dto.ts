@@ -20,4 +20,12 @@ export class ChangePlanDto {
   @IsOptional()
   @IsEnum(BillingCycle, { message: 'billingCycle must be MONTHLY or YEARLY' })
   billingCycle?: BillingCycle;
+
+  @ApiPropertyOptional({
+    description: 'Stripe PaymentIntent ID (if upgrading/changing plan with Stripe)',
+    example: 'pi_3MtwBwLkdIwHu7ix28a3tqPa',
+  })
+  @IsOptional()
+  @IsString()
+  paymentIntentId?: string;
 }

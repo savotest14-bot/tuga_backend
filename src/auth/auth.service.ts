@@ -19,6 +19,7 @@ import * as path from 'path';
 import { Role, VerificationStatus, ContactSubject, ContactStatus } from '@prisma/client';
 import { RequestReactivationDto } from './dto/request-reactivation.dto';
 import { MailService } from '../common/mail/mail.service';
+import { getFileUrl, deleteStoredFile } from '../common/helpers/multer.helper';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { TraderRegisterStep1Dto } from './dto/trader-register-step1.dto';
 import { TraderRegisterStep2Dto } from './dto/trader-register-step2.dto';
@@ -320,12 +321,12 @@ export class AuthService {
 
         const logo =
             files?.logo?.[0]
-                ? `/uploads/traders/${files.logo[0].filename}`
+                ? getFileUrl(files.logo[0], 'traders')
                 : trader.logo;
 
         const document =
             files?.document?.[0]
-                ? `/uploads/traders/${files.document[0].filename}`
+                ? getFileUrl(files.document[0], 'traders')
                 : trader.document;
 
         const certificateFiles = files?.certificates ?? [];
@@ -335,7 +336,7 @@ export class AuthService {
             await this.prisma.traderCertificate.createMany({
                 data: certificateFiles.map((file) => ({
                     traderProfileId: trader.id,
-                    fileUrl: `/uploads/portfolio/${file.filename}`,
+                    fileUrl: getFileUrl(file, 'portfolio'),
                 })),
             });
         }
@@ -344,7 +345,7 @@ export class AuthService {
             await this.prisma.traderInsuranceDocument.createMany({
                 data: insuranceFiles.map((file) => ({
                     traderProfileId: trader.id,
-                    fileUrl: `/uploads/portfolio/${file.filename}`,
+                    fileUrl: getFileUrl(file, 'portfolio'),
                 })),
             });
         }
@@ -768,7 +769,7 @@ export class AuthService {
                         'STRIPE',
 
                     transactionId:
-                        `txn_${Date.now()}`,
+                        data.paymentIntentId || `txn_${Date.now()}`,
 
                     paidAt:
                         now,
@@ -2325,17 +2326,17 @@ export class AuthService {
 
             /* ===================== PROFILE IMAGE ===================== */
             if (files?.profileImage?.[0]) {
-                profileImage = `/uploads/traders/${files.profileImage[0].filename}`;
+                profileImage = getFileUrl(files.profileImage[0], 'traders');
             }
 
             /* ===================== LOGO ===================== */
             if (files?.logo?.[0]) {
-                logo = `/uploads/traders/${files.logo[0].filename}`;
+                logo = getFileUrl(files.logo[0], 'traders');
             }
 
             /* ===================== DOCUMENT ===================== */
             if (files?.document?.[0]) {
-                document = `/uploads/traders/${files.document[0].filename}`;
+                document = getFileUrl(files.document[0], 'traders');
                 documentChanged = true;
             }
 
@@ -2554,7 +2555,7 @@ export class AuthService {
                         await tx.traderCertificate.createMany({
                             data: certificateFiles.map((file) => ({
                                 traderProfileId: traderProfile.id,
-                                fileUrl: `/uploads/portfolio/${file.filename}`,
+                                fileUrl: getFileUrl(file, 'portfolio'),
                             })),
                         });
                     }
@@ -2563,7 +2564,7 @@ export class AuthService {
                         await tx.traderInsuranceDocument.createMany({
                             data: insuranceFiles.map((file) => ({
                                 traderProfileId: traderProfile.id,
-                                fileUrl: `/uploads/portfolio/${file.filename}`,
+                                fileUrl: getFileUrl(file, 'portfolio'),
                             })),
                         });
                     }
@@ -2584,9 +2585,11 @@ export class AuthService {
                 }
             };
 
-            if (files?.profileImage?.[0]) deleteFile(oldProfileImage);
-            if (files?.logo?.[0]) deleteFile(oldLogo);
-            if (files?.document?.[0]) deleteFile(oldDocument);            /* ===================== CLEAR REDIS CACHE ===================== */
+            if (files?.profileImage?.[0]) await deleteStoredFile(oldProfileImage);
+            if (files?.logo?.[0]) await deleteStoredFile(oldLogo);
+            if (files?.document?.[0]) await deleteStoredFile(oldDocument);
+
+            /* ===================== CLEAR REDIS CACHE ===================== */
 
             // clear redis cache
 
@@ -2752,7 +2755,7 @@ export class AuthService {
             await this.prisma.traderPortfolio.createMany({
                 data: imageFiles.map((file) => ({
                     traderProfileId: trader.id,
-                    fileUrl: `uploads/portfolio/${file.filename}`,
+                    fileUrl: getFileUrl(file, 'portfolio'),
                     type: 'IMAGE',
                 })),
             });
@@ -2768,7 +2771,7 @@ export class AuthService {
             await this.prisma.traderPortfolio.createMany({
                 data: videoFiles.map((file) => ({
                     traderProfileId: trader.id,
-                    fileUrl: `uploads/portfolio/${file.filename}`,
+                    fileUrl: getFileUrl(file, 'portfolio'),
                     type: 'VIDEO',
                 })),
             });
@@ -2784,7 +2787,7 @@ export class AuthService {
             await this.prisma.traderCertificate.createMany({
                 data: certificateFiles.map((file) => ({
                     traderProfileId: trader.id,
-                    fileUrl: `uploads/portfolio/${file.filename}`,
+                    fileUrl: getFileUrl(file, 'portfolio'),
                 })),
             });
         }
@@ -2799,7 +2802,7 @@ export class AuthService {
             await this.prisma.traderInsuranceDocument.createMany({
                 data: insuranceFiles.map((file) => ({
                     traderProfileId: trader.id,
-                    fileUrl: `uploads/portfolio/${file.filename}`,
+                    fileUrl: getFileUrl(file, 'portfolio'),
                 })),
             });
         }

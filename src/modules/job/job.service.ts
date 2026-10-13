@@ -15,6 +15,7 @@ import { TraderMatchingService } from '../trader-matching/trader-matching.servic
 import { NotificationService } from '../notification/notification.service';
 import { UpdateJobDto } from './dto/update-job.dto';
 import { CloseJobDto } from './dto/close-job.dto';
+import { getFileUrl, deleteStoredFile } from 'src/common/helpers/multer.helper';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { RedisService } from 'src/redis/redis.service';
@@ -182,7 +183,7 @@ export class JobService {
                     attachments: {
                         create:
                             files?.map((file) => ({
-                                file: `uploads/jobs/${file.filename}`,
+                                file: getFileUrl(file, 'jobs', false),
                             })) || [],
                     },
                 },
@@ -451,13 +452,7 @@ export class JobService {
 
                 try {
 
-                    const filePath =
-                        path.join(
-                            process.cwd(),
-                            attachment.file,
-                        );
-
-                    await fs.unlink(filePath);
+                    await deleteStoredFile(attachment.file);
 
                 } catch (error) {
 
@@ -560,7 +555,7 @@ export class JobService {
                             create:
                                 files.map((file) => ({
                                     file:
-                                        `uploads/jobs/${file.filename}`,
+                                        getFileUrl(file, 'jobs', false),
                                 })),
                         },
                     }),

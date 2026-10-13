@@ -1347,6 +1347,12 @@ export class CustomerService {
 
     private formatImageUrl(file: string | null | undefined): string | null {
         if (!file) return null;
+        if (file.includes('r2.cloudflarestorage.com')) {
+            const cdnUrl = process.env.R2_PUBLIC_URL || 'https://cdn.tugatrades.com';
+            const cleanCdn = cdnUrl.replace(/\/+$/, '');
+            const key = file.replace(/^https?:\/\/[^\/]+\/[^\/]+\//, '');
+            return `${cleanCdn}/${key.replace(/^\/+/, '')}`;
+        }
         if (file.startsWith('http://') || file.startsWith('https://')) return file;
         const baseUrl = process.env.APP_URL || '';
         const cleanBase = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;

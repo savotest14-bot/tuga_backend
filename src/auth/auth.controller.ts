@@ -413,11 +413,13 @@ export class AuthController {
         profileImage: {
           type: 'string',
           format: 'binary',
+          description: 'User personal profile avatar picture (optional)',
         },
 
         logo: {
           type: 'string',
           format: 'binary',
+          description: 'Trader business company logo (optional)',
         },
 
         document: {

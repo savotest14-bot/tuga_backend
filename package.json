@@ -19,9 +19,13 @@
     "prisma:dev": "prisma generate && prisma migrate dev",
     "prisma:prod": "prisma generate && prisma migrate deploy",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
-    "test:e2e": "jest --config ./test/jest-e2e.json"
+    "test:e2e": "jest --config ./test/jest-e2e.json",
+    "test:r2": "ts-node -r tsconfig-paths/register src/scripts/test-r2.ts",
+    "test:stripe": "ts-node -r tsconfig-paths/register src/scripts/test-stripe.ts",
+    "seed:moderation": "ts-node -r tsconfig-paths/register src/scripts/seed-moderation-keywords.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1149.0",
     "@nestjs/bullmq": "^11.0.4",
     "@nestjs/cache-manager": "^3.1.2",
     "@nestjs/common": "^11.0.1",
@@ -58,6 +62,7 @@
     "rxjs": "^7.8.1",
     "socket.io": "^4.8.3",
     "ssh2": "^1.17.0",
+    "stripe": "^23.0.0",
     "swagger-ui-express": "^5.0.1",
     "uuid": "^14.0.0"
   },

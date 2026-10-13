@@ -50,6 +50,7 @@ import { ModerationModule } from './modules/moderation/moderation.module';
 import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { DirectJobModule } from './modules/direct-job/direct-job.module';
+import { PaymentModule } from './modules/payment/payment.module';
 
 @Module({
   imports: [
@@ -121,6 +122,8 @@ import { DirectJobModule } from './modules/direct-job/direct-job.module';
     DashboardModule,
 
     DirectJobModule,
+
+    PaymentModule,
 
   ],
 

@@ -19,6 +19,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 
 import { CreateQuoteDto } from './dto/create-quote.dto';
+import { getFileUrl, deleteStoredFile } from 'src/common/helpers/multer.helper';
 import { RedisService } from 'src/redis/redis.service';
 import { GetMyQuotesDto } from './dto/get-my-quote.dto';
 import { InjectQueue } from '@nestjs/bullmq';
@@ -524,7 +525,7 @@ export class QuoteService {
                                 message: dto.message,
                                 attachments: {
                                     create: files?.map((file) => ({
-                                        file: `uploads/quotes/${file.filename}`,
+                                        file: getFileUrl(file, 'quotes', false),
                                         filename: file.originalname,
                                         mimeType: file.mimetype,
                                         size: file.size,
@@ -1591,7 +1592,7 @@ export class QuoteService {
                 ...quote,
                 attachments: quote?.attachments?.map(a => ({
                     ...a,
-                    url: `${process.env.APP_URL}/${a.file}`,
+                    url: a.file.startsWith('http') ? a.file : `${process.env.APP_URL || ''}/${a.file.replace(/^\/+/, '')}`,
                 })) || [],
             },
         };
@@ -1672,7 +1673,7 @@ export class QuoteService {
                             ? {
                                 attachments: {
                                     create: files.map((file) => ({
-                                        file: `uploads/quotes/${file.filename}`,
+                                        file: getFileUrl(file, 'quotes', false),
                                         filename: file.originalname,
                                         mimeType: file.mimetype,
                                         size: file.size,
@@ -1732,12 +1733,11 @@ export class QuoteService {
             },
         );
 
-        // Delete previous attachments from server disk
+        // Delete previous attachments from server disk or R2
         if (files && files.length > 0 && existingAttachments.length > 0) {
             for (const attachment of existingAttachments) {
                 try {
-                    const filePath = path.join(process.cwd(), attachment.file);
-                    await fs.unlink(filePath);
+                    await deleteStoredFile(attachment.file);
                 } catch (error) {
                     this.logger.warn(`Failed to delete quote attachment file ${attachment.file}: ${error.message}`);
                 }

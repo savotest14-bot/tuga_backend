@@ -26,7 +26,7 @@ import {
 import type { Request }
 from 'express';
 
-import { multerOptions }
+import { multerOptions, getFileUrl }
 from 'src/common/helpers/multer.helper';
 
 import { ChatService }
@@ -118,14 +118,7 @@ export class ChatController {
       files.length > 0
     ) {
 
-      attachments =
-        files.map(
-          (file) =>
-            file.path.replace(
-              /\\/g,
-              '/',
-            ),
-        );
+      attachments = files.map((file) => getFileUrl(file, 'chat'));
     }
 
     /*

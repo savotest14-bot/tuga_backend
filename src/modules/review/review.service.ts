@@ -25,6 +25,7 @@ import { UpdateReviewDto } from './dto/update-review.dto';
 
 import * as fs from 'fs';
 import * as path from 'path';
+import { getFileUrl, deleteStoredFile } from 'src/common/helpers/multer.helper';
 import { ModerationService } from '../moderation/moderation.service';
 import { GetMyReviewsDto } from './dto/get-my-review.dto';
 import { TraderDashboardService } from '../dashboard/trader-dashboard.service';
@@ -282,7 +283,7 @@ export class ReviewService {
                 ...(proofs.length > 0 && {
                     proofs: {
                         create: proofs.map(file => ({
-                            fileUrl: `uploads/reviews/${file.filename}`,
+                            fileUrl: getFileUrl(file, 'reviews', false),
                             mimeType:
                                 file.mimetype,
                         })),
@@ -701,10 +702,7 @@ export class ReviewService {
             if (dto.replaceProofs && proofs.length > 0 && review.proofs.length > 0) {
                 for (const proof of review.proofs) {
                     try {
-                        const filePath = path.join(process.cwd(), proof.fileUrl);
-                        if (fs.existsSync(filePath)) {
-                            fs.unlinkSync(filePath);
-                        }
+                        await deleteStoredFile(proof.fileUrl);
                     } catch (error) {
                         this.logger.warn(`Failed to delete proof file: ${proof.fileUrl}`);
                     }
@@ -775,7 +773,7 @@ export class ReviewService {
                     ...(proofs.length > 0 && {
                         proofs: {
                             create: proofs.map((file) => ({
-                                fileUrl: `uploads/reviews/${file.filename}`,
+                                fileUrl: getFileUrl(file, 'reviews', false),
                                 mimeType: file.mimetype,
                             })),
                         },

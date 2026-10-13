@@ -4,6 +4,7 @@ import {
 } from '@nestjs/common';
 import * as fs from 'fs';
 import * as path from 'path';
+import { getFileUrl, deleteStoredFile } from '../../common/helpers/multer.helper';
 import { PrismaService } from '../../prisma/prisma.service';
 
 import { CreateCategoryDto } from './dto/create-category.dto';
@@ -49,7 +50,7 @@ export class MasterService {
         }
 
         const image = file
-            ? `/uploads/categories/${file.filename}`
+            ? getFileUrl(file, 'categories')
             : null;
 
         const category =
@@ -114,7 +115,7 @@ export class MasterService {
         }
 
         const image = file
-            ? `/uploads/skill-services/${file.filename}`
+            ? getFileUrl(file, 'skill-services')
             : null;
 
         const skillService =
@@ -178,7 +179,7 @@ export class MasterService {
         }
 
         const image = file
-            ? `/uploads/sub-categories/${file.filename}`
+            ? getFileUrl(file, 'sub-categories')
             : null;
 
         const subCategory =
@@ -525,26 +526,11 @@ export class MasterService {
         // DELETE OLD IMAGE
 
         if (file) {
-
             if (category.image) {
-
-                const oldImagePath =
-                    path.join(
-                        process.cwd(),
-                        category.image,
-                    );
-
-                if (
-                    fs.existsSync(oldImagePath)
-                ) {
-                    fs.unlinkSync(
-                        oldImagePath,
-                    );
-                }
+                await deleteStoredFile(category.image);
             }
 
-            image =
-                `/uploads/categories/${file.filename}`;
+            image = getFileUrl(file, 'categories');
         }
 
         const updatedCategory =
@@ -593,26 +579,11 @@ export class MasterService {
         // DELETE OLD IMAGE
 
         if (file) {
-
             if (skillService.image) {
-
-                const oldImagePath =
-                    path.join(
-                        process.cwd(),
-                        skillService.image,
-                    );
-
-                if (
-                    fs.existsSync(oldImagePath)
-                ) {
-                    fs.unlinkSync(
-                        oldImagePath,
-                    );
-                }
+                await deleteStoredFile(skillService.image);
             }
 
-            image =
-                `/uploads/skill-services/${file.filename}`;
+            image = getFileUrl(file, 'skill-services');
         }
 
         const updatedSkillService =
@@ -661,26 +632,11 @@ export class MasterService {
         // DELETE OLD IMAGE
 
         if (file) {
-
             if (subCategory.image) {
-
-                const oldImagePath =
-                    path.join(
-                        process.cwd(),
-                        subCategory.image,
-                    );
-
-                if (
-                    fs.existsSync(oldImagePath)
-                ) {
-                    fs.unlinkSync(
-                        oldImagePath,
-                    );
-                }
+                await deleteStoredFile(subCategory.image);
             }
 
-            image =
-                `/uploads/sub-categories/${file.filename}`;
+            image = getFileUrl(file, 'sub-categories');
         }
 
         const updatedSubCategory =
