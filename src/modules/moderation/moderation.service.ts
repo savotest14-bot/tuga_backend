@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 
 import {
     ContentType,
@@ -11,156 +11,128 @@ import { RedisService } from 'src/redis/redis.service';
 
 @Injectable()
 export class ModerationService {
+    private readonly logger = new Logger(ModerationService.name);
+    private readonly compiledRegexMap = new Map<string, RegExp>();
+
     constructor(
         private readonly prisma: PrismaService,
         private readonly redisService: RedisService,
     ) { }
 
+    /**
+     * Retrieves or compiles an optimized unicode word-boundary RegExp for a keyword.
+     */
+    private getCompiledRegex(keyword: string, global: boolean = false): RegExp {
+        const lowerKey = keyword.toLowerCase().trim();
+        const mapKey = global ? `${lowerKey}:g` : lowerKey;
+        let regex = this.compiledRegexMap.get(mapKey);
+        if (!regex) {
+            const escaped = lowerKey.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const flags = global ? 'giu' : 'iu';
+            // Unicode-aware word boundary matching: (?<=^|[^\p{L}\p{N}])keyword(?=$|[^\p{L}\p{N}])
+            regex = new RegExp(
+                `(?<=^|[^\\p{L}\\p{N}])${escaped}(?=$|[^\\p{L}\\p{N}])`,
+                flags,
+            );
+            this.compiledRegexMap.set(mapKey, regex);
+        }
+        return regex;
+    }
+
+    /**
+     * Retrieves active violation keywords from Redis cache or database.
+     */
+    async getActiveKeywords(): Promise<ViolationKeyword[]> {
+        const cacheKey = 'moderation:keywords';
+        const cachedKeywords = await this.redisService.get(cacheKey);
+
+        if (cachedKeywords) {
+            return cachedKeywords as ViolationKeyword[];
+        }
+
+        const keywords = await this.prisma.violationKeyword.findMany({
+            where: {
+                isActive: true,
+            },
+        });
+
+        await this.redisService.set(cacheKey, keywords, 86400); // 24 hours
+        return keywords;
+    }
+
+    /**
+     * Scans content exclusively against configured violation keywords using
+     * proper word boundary matching. Non-keyword detectors (phone, email, URL)
+     * are completely removed so only verified violation keywords trigger flags.
+     */
     async scanContent(
         userId: string,
         content: string,
         contentType: ContentType,
         contentId?: string,
     ) {
-        const violations: any[] = [];
-
-        const lowerContent =
-            content.toLowerCase();
-
-        const cacheKey =
-            'moderation:keywords';
-
-        let keywords: ViolationKeyword[] = [];
-
-        const cachedKeywords =
-            await this.redisService.get(cacheKey);
-
-        if (cachedKeywords) {
-            keywords =
-                cachedKeywords as ViolationKeyword[];
-        } else {
-            keywords =
-                await this.prisma.violationKeyword.findMany({
-                    where: {
-                        isActive: true,
-                    },
-                });
-
-            await this.redisService.set(
-                cacheKey,
-                keywords,
-                86400,
-            );
+        if (!content || typeof content !== 'string' || !content.trim()) {
+            return {
+                flagged: false,
+                violations: [],
+                cleanContent: content || '',
+            };
         }
 
-        // --------------------------
-        // Keyword Detection
-        // --------------------------
+        const keywords = await this.getActiveKeywords();
+        const violations: any[] = [];
+        const seenKeywords = new Set<string>();
+        let cleanContent = content;
 
+        // ----------------------------------------------------
+        // Violation Keyword Detection (Word Boundary Matching)
+        // ----------------------------------------------------
         for (const keyword of keywords) {
-            if (
-                lowerContent.includes(
-                    keyword.keyword.toLowerCase(),
-                )
-            ) {
+            if (!keyword.keyword) continue;
+            const normKey = keyword.keyword.toLowerCase().trim();
+            if (seenKeywords.has(normKey)) continue;
+
+            const regex = this.getCompiledRegex(normKey);
+            if (regex.test(content)) {
+                seenKeywords.add(normKey);
                 violations.push({
                     reason: keyword.category,
-                    detectedText:
-                        keyword.keyword,
-                    severity:
-                        keyword.severity,
+                    detectedText: keyword.keyword,
+                    severity: keyword.severity,
                 });
+
+                // Mask all occurrences of detected violation keyword with asterisks
+                const globalRegex = this.getCompiledRegex(normKey, true);
+                cleanContent = cleanContent.replace(
+                    globalRegex,
+                    (matched) => '*'.repeat(matched.length),
+                );
             }
         }
 
         // --------------------------
-        // Phone Detection
+        // Save Flags for Admin Review
         // --------------------------
-
-        const phoneRegex =
-            /\+?\d[\d\s-]{8,15}\d/g;
-
-        const phones =
-            content.match(phoneRegex);
-
-        if (phones?.length) {
-            violations.push({
-                reason:
-                    'PHONE_NUMBER_DETECTED',
-                detectedText: phones[0],
-                severity: 2,
-            });
-        }
-
-        // --------------------------
-        // Email Detection
-        // --------------------------
-
-        const emailRegex =
-            /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
-
-        const emails =
-            content.match(emailRegex);
-
-        if (emails?.length) {
-            violations.push({
-                reason:
-                    'EMAIL_DETECTED',
-                detectedText: emails[0],
-                severity: 2,
-            });
-        }
-
-        // --------------------------
-        // URL Detection
-        // --------------------------
-
-        const urlRegex =
-            /(https?:\/\/|www\.)/gi;
-
-        const urls =
-            content.match(urlRegex);
-
-        if (urls?.length) {
-            violations.push({
-                reason: 'URL_DETECTED',
-                detectedText: urls[0],
-                severity: 2,
-            });
-        }
-
-        // --------------------------
-        // Save Flags
-        // --------------------------
-
         if (violations.length) {
             await this.prisma.contentFlag.createMany({
-                data: violations.map(
-                    (violation) => ({
-                        userId,
-                        contentType,
-                        contentId,
-                        detectedText:
-                            violation.detectedText,
-                        reason:
-                            violation.reason,
-                        severity:
-                            violation.severity,
-                        status:
-                            ModerationStatus.PENDING,
-                    }),
-                ),
+                data: violations.map((violation) => ({
+                    userId,
+                    contentType,
+                    contentId,
+                    detectedText: violation.detectedText,
+                    reason: violation.reason,
+                    severity: violation.severity,
+                    status: ModerationStatus.PENDING,
+                })),
             });
 
-            await this.redisService.del(
-                'moderation:flags:pending',
-            );
+            await this.redisService.del('moderation:flags:pending');
         }
 
         return {
-            flagged:
-                violations.length > 0,
+            flagged: violations.length > 0,
             violations,
+            cleanContent,
         };
     }
 
@@ -246,8 +218,7 @@ export class ModerationService {
     }
 
     async clearKeywordCache() {
-        await this.redisService.del(
-            'moderation:keywords',
-        );
+        this.compiledRegexMap.clear();
+        await this.redisService.del('moderation:keywords');
     }
 }
