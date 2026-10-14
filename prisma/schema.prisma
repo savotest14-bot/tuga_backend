@@ -19,6 +19,14 @@ enum UserStatus {
   PENDING
 }
 
+enum Language {
+  PORTUGUESE
+  ENGLISH
+  SPANISH
+  FRENCH
+  GERMAN
+}
+
 model User {
   id String @id @default(uuid())
 
@@ -39,6 +47,8 @@ model User {
   role Role @default(CUSTOMER)
 
   status UserStatus @default(ACTIVE)
+
+  languages Language[] @default([])
 
   verificationOtp          String?
   verificationOtpExpiresAt DateTime?

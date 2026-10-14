@@ -356,6 +356,16 @@ export class AuthController {
           example: 75.8577,
         },
 
+        languages: {
+          type: 'array',
+          items: {
+            type: 'string',
+            enum: ['PORTUGUESE', 'ENGLISH', 'SPANISH', 'FRENCH', 'GERMAN'],
+          },
+          example: ['PORTUGUESE', 'ENGLISH'],
+          description: 'Languages spoken: PORTUGUESE, ENGLISH, SPANISH, FRENCH, GERMAN (accepts array, JSON string, or comma-separated)',
+        },
+
         /* ================= TRADER ================= */
 
         companyName: {

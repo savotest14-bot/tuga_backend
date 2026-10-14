@@ -1,6 +1,7 @@
 import {
   IsArray,
   IsEmail,
+  IsEnum,
   IsNumber,
   IsOptional,
   IsString,
@@ -17,12 +18,43 @@ import {
   Type,
 } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { Language } from '@prisma/client';
 
 /*
 |--------------------------------------------------------------------------
 | HELPER
 |--------------------------------------------------------------------------
 */
+
+function parseLanguages(value: any): Language[] {
+  if (!value) {
+    return [];
+  }
+
+  let items: any[] = [];
+
+  if (Array.isArray(value)) {
+    items = value;
+  } else if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (trimmed.startsWith('[')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) {
+          items = parsed;
+        }
+      } catch {
+        items = [];
+      }
+    } else {
+      items = trimmed.split(',');
+    }
+  }
+
+  return items
+    .map((item) => (typeof item === 'string' ? item.trim().toUpperCase() : ''))
+    .filter(Boolean) as Language[];
+}
 
 function parseArray(value: any): string[] {
 
@@ -97,6 +129,21 @@ export class UpdateProfileDto {
   @Min(-180)
   @Max(180)
   longitude?: number;
+
+  @ApiPropertyOptional({
+    description: 'Languages spoken: PORTUGUESE, ENGLISH, SPANISH, FRENCH, GERMAN (accepts array, JSON string, or comma-separated)',
+    enum: Language,
+    isArray: true,
+    example: [Language.PORTUGUESE, Language.ENGLISH],
+  })
+  @IsOptional()
+  @Transform(({ value }) => parseLanguages(value))
+  @IsArray()
+  @IsEnum(Language, {
+    each: true,
+    message: 'Each language must be one of: PORTUGUESE, ENGLISH, SPANISH, FRENCH, GERMAN',
+  })
+  languages?: Language[];
 
   /* =========================================================================
    | TRADER

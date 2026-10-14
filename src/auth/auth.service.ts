@@ -2136,6 +2136,7 @@ export class AuthService {
                 email: true,
                 phone: true,
                 profileImage: true,
+                languages: true,
                 latitude: true,
                 longitude: true,
                 role: true,
@@ -2352,6 +2353,7 @@ export class AuthService {
             if (body.phone !== undefined) updateUserData.phone = body.phone;
             if (body.latitude !== undefined) updateUserData.latitude = body.latitude;
             if (body.longitude !== undefined) updateUserData.longitude = body.longitude;
+            if (body.languages !== undefined) updateUserData.languages = body.languages;
             if (profileImage !== user.profileImage) {
                 updateUserData.profileImage = profileImage;
             }

@@ -254,6 +254,7 @@ export class CustomerService {
                 u."phone",
                 u."profileImage",
                 u."isVerified",
+                u."languages",
 
                 tp.id AS "traderProfileId",
                 tp."companyName",
@@ -854,6 +855,7 @@ export class CustomerService {
             profileImage: trader.profileImage,
             latitude: trader.latitude,
             longitude: trader.longitude,
+            languages: trader.languages,
             distance,
 
             isSaved: !!saved,
@@ -1018,6 +1020,7 @@ export class CustomerService {
             profileImage: trader.profileImage,
             latitude: trader.latitude,
             longitude: trader.longitude,
+            languages: trader.languages,
             distance,
 
             metrics: trader.traderMetrics,
